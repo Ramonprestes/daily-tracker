@@ -1,83 +1,94 @@
 import React from "react";
 import {
   Calendar,
-  Clock,
-  CalendarDays,
+  Grid,
   BarChart2,
   Bell,
   BellOff,
-  FileDown,
+  Download,
   LogOut,
-  Sliders,
+  Clock,
 } from "lucide-react";
 
 export default function Navbar({
   currentUser,
-  currentView,
-  setCurrentView,
-  editMode,
-  setEditMode,
-  notificationsEnabled,
-  onRequestNotification,
-  onExportPDF,
-  onLogout,
+  currentView = "daily",
+  setCurrentView = () => {},
+  editMode = false,
+  setEditMode = () => {},
+  notificationsEnabled = false,
+  onRequestNotification = () => {},
+  onExportPDF = () => {},
+  onLogout = () => {},
 }) {
   return (
-    <header className="navbar">
-      <div className="brand">
-        <h2>Daily Tracker</h2>
-        <span className="user-email">{currentUser?.email}</span>
-      </div>
-
-      <div className="view-switcher">
-        <button
-          className={`btn-view ${currentView === "daily" ? "active" : ""}`}
-          onClick={() => setCurrentView("daily")}
-        >
-          <Clock size={15} /> Dia
-        </button>
-        <button
-          className={`btn-view ${currentView === "weekly" ? "active" : ""}`}
-          onClick={() => setCurrentView("weekly")}
-        >
-          <CalendarDays size={15} /> Semana
-        </button>
-        <button
-          className={`btn-view ${currentView === "monthly" ? "active" : ""}`}
-          onClick={() => setCurrentView("monthly")}
-        >
-          <Calendar size={15} /> Mês
-        </button>
-        <button
-          className={`btn-view ${currentView === "stats" ? "active" : ""}`}
-          onClick={() => setCurrentView("stats")}
-        >
-          <BarChart2 size={15} /> Gráficos
-        </button>
-      </div>
-
-      <div className="navbar-actions">
-        <button
-          className={`btn-secondary ${notificationsEnabled ? "active-bell" : ""}`}
-          onClick={onRequestNotification}
-          title={notificationsEnabled ? "Lembretes Ativos" : "Ativar Lembretes"}
-        >
-          {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
-        </button>
-        <button className="btn-secondary" onClick={onExportPDF} title="Exportar PDF do Dia">
-          <FileDown size={16} />
-        </button>
-        {currentView === "daily" && (
+    <header className="app-header">
+      <div className="header-left">
+        <h1 className="logo-title">Daily Tracker</h1>
+        <nav className="nav-tabs">
           <button
-            className={`btn-secondary ${editMode ? "active" : ""}`}
-            onClick={() => setEditMode(!editMode)}
+            className={`nav-tab ${currentView === "daily" ? "active" : ""}`}
+            onClick={() => setCurrentView("daily")}
           >
-            <Sliders size={16} /> {editMode ? "Fechar" : "Editar"}
+            <Clock size={16} /> Diário
           </button>
-        )}
-        <button onClick={onLogout} className="btn-logout" title="Sair">
-          <LogOut size={16} />
+          <button
+            className={`nav-tab ${currentView === "weekly" ? "active" : ""}`}
+            onClick={() => setCurrentView("weekly")}
+          >
+            <Calendar size={16} /> Semanal
+          </button>
+          <button
+            className={`nav-tab ${currentView === "monthly" ? "active" : ""}`}
+            onClick={() => setCurrentView("monthly")}
+          >
+            <Grid size={16} /> Mensal
+          </button>
+          <button
+            className={`nav-tab ${currentView === "stats" ? "active" : ""}`}
+            onClick={() => setCurrentView("stats")}
+          >
+            <BarChart2 size={16} /> Estatísticas
+          </button>
+        </nav>
+      </div>
+
+      <div className="header-right">
+        {/* Notificações */}
+        <button
+          className={`btn-icon-nav ${notificationsEnabled ? "active-bell" : ""}`}
+          onClick={onRequestNotification}
+          title={
+            notificationsEnabled
+              ? "Notificações ativadas"
+              : "Ativar notificações de rotina"
+          }
+        >
+          {notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}
         </button>
+
+        {/* Exportar PDF */}
+        <button
+          className="btn-icon-nav"
+          onClick={onExportPDF}
+          title="Exportar PDF do dia"
+        >
+          <Download size={18} />
+        </button>
+
+        {/* Perfil & Logout */}
+        <div className="user-profile">
+          <span className="user-email" title={currentUser?.email}>
+            {currentUser?.email?.split("@")[0]}
+          </span>
+          <button
+            className="btn-logout"
+            onClick={onLogout}
+            title="Sair da conta"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
     </header>
   );
