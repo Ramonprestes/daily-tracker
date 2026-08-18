@@ -1,32 +1,21 @@
 import React, { useState, useEffect } from "react";
-import { X, Clock, Calendar, Repeat, Check } from "lucide-react";
+import { X, Clock, Calendar, Check } from "lucide-react";
 
-const QUICK_TIMES = [
-  "06:00", "07:00", "08:00", "09:00",
-  "10:00", "12:00", "14:00", "16:00",
-  "18:00", "19:30", "21:00", "22:30"
-];
-
-const WEEK_DAYS = [
-  { id: 1, label: "Seg" },
-  { id: 2, label: "Ter" },
-  { id: 3, label: "Qua" },
-  { id: 4, label: "Qui" },
-  { id: 5, label: "Sex" },
-  { id: 6, label: "Sáb" },
-  { id: 0, label: "Dom" },
-];
-
-export default function TaskModal({ isOpen, onClose, onSave, editingTask, initialDate }) {
-  if (!isOpen) return null;
-
+export default function TaskModal({
+  isOpen,
+  onClose,
+  onSave,
+  editingTask = null,
+  initialDate,
+}) {
   const [tarefa, setTarefa] = useState("");
   const [horario, setHorario] = useState("08:00");
   const [duracao, setDuracao] = useState("30m");
-  const [recurrenceType, setRecurrenceType] = useState("daily"); // 'once' | 'daily' | 'weekdays' | 'weekends' | 'custom'
-  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]);
-  const [hasUntilDate, setHasUntilDate] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState("daily"); // daily, weekdays, weekends, custom, once
+  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // 1=Seg..5=Sex
+  const [hasUntil, setHasUntil] = useState(false);
   const [untilDate, setUntilDate] = useState("");
+  const [targetDate, setTargetDate] = useState(initialDate || "");
 
   useEffect(() => {
     if (editingTask) {
@@ -35,31 +24,34 @@ export default function TaskModal({ isOpen, onClose, onSave, editingTask, initia
       setDuracao(editingTask.duracao || "30m");
       setRecurrenceType(editingTask.recurrenceType || "daily");
       setSelectedDays(editingTask.selectedDays || [1, 2, 3, 4, 5]);
-      setHasUntilDate(!!editingTask.untilDate);
+      setHasUntil(Boolean(editingTask.untilDate));
       setUntilDate(editingTask.untilDate || "");
+      setTargetDate(editingTask.targetDate || initialDate || "");
     } else {
       setTarefa("");
       setHorario("08:00");
       setDuracao("30m");
       setRecurrenceType("daily");
       setSelectedDays([1, 2, 3, 4, 5]);
-      setHasUntilDate(false);
+      setHasUntil(false);
       setUntilDate("");
+      setTargetDate(initialDate || "");
     }
-  }, [editingTask, isOpen]);
+  }, [editingTask, isOpen, initialDate]);
 
-  const toggleDay = (dayId) => {
-    if (selectedDays.includes(dayId)) {
-      if (selectedDays.length === 1) return; // manter ao menos 1
-      setSelectedDays(selectedDays.filter((d) => d !== dayId));
+  if (!isOpen) return null;
+
+  const handleToggleDay = (dayIndex) => {
+    if (selectedDays.includes(dayIndex)) {
+      setSelectedDays(selectedDays.filter((d) => d !== dayIndex));
     } else {
-      setSelectedDays([...selectedDays, dayId]);
+      setSelectedDays([...selectedDays, dayIndex].sort());
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!tarefa.trim()) return;
+    if (!tarefa.trim() || !horario) return;
 
     const taskPayload = {
       id: editingTask ? editingTask.id : Date.now().toString(),
@@ -67,69 +59,77 @@ export default function TaskModal({ isOpen, onClose, onSave, editingTask, initia
       horario,
       duracao,
       recurrenceType,
-      selectedDays: recurrenceType === "custom" ? selectedDays : [],
-      targetDate: recurrenceType === "once" ? initialDate : null,
-      untilDate: hasUntilDate ? untilDate : null,
+      selectedDays: recurrenceType === "custom" ? selectedDays : undefined,
+      untilDate: hasUntil && recurrenceType !== "once" ? untilDate : undefined,
+      targetDate: recurrenceType === "once" ? targetDate : undefined,
     };
 
     onSave(taskPayload);
     onClose();
   };
 
+  const quickTimes = [
+    "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
+    "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
+    "18:00", "19:00", "20:00", "21:00", "22:00", "23:00",
+  ];
+
   return (
     <div className="modal-overlay">
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{editingTask ? "Editar Tarefa" : "Nova Tarefa"}</h3>
+          <h3>{editingTask ? "Editar Tarefa" : "Nova Tarefa na Rotina"}</h3>
           <button className="btn-close-modal" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
-          {/* TÍTULO */}
+          {/* Nome da Tarefa */}
           <div className="form-group">
-            <label>O que você vai fazer?</label>
+            <label>Nome da Tarefa</label>
             <input
               type="text"
-              placeholder="Ex: Treino de pernas, Reunião de alinhamento, Estudar React..."
+              placeholder="Ex: Treino na academia, Reunião de equipe..."
               value={tarefa}
               onChange={(e) => setTarefa(e.target.value)}
-              autoFocus
-              className="modal-input"
               required
+              className="modal-input"
+              autoFocus
             />
           </div>
 
-          {/* HORÁRIO & PRESETS */}
+          {/* Horário e Duração */}
           <div className="form-group">
-            <div className="label-with-hint">
-              <label>Horário de Início</label>
-              <span className="hint">ou clique em um atalho abaixo</span>
-            </div>
+            <label>Horário Previsto & Duração</label>
             <div className="time-custom-row">
               <input
                 type="time"
                 value={horario}
                 onChange={(e) => setHorario(e.target.value)}
+                required
                 className="modal-time-input"
               />
               <div className="duration-select">
                 <Clock size={15} />
-                <select value={duracao} onChange={(e) => setDuracao(e.target.value)}>
+                <select
+                  value={duracao}
+                  onChange={(e) => setDuracao(e.target.value)}
+                >
                   <option value="15m">15 min</option>
                   <option value="30m">30 min</option>
                   <option value="45m">45 min</option>
                   <option value="1h">1 hora</option>
                   <option value="1h30">1h 30m</option>
                   <option value="2h">2 horas</option>
-                  <option value="3h+">3h+</option>
+                  <option value="3h+">3h ou mais</option>
                 </select>
               </div>
             </div>
 
+            {/* Chips de Horários Rápidos */}
             <div className="quick-times-grid">
-              {QUICK_TIMES.map((time) => (
+              {quickTimes.map((time) => (
                 <button
                   type="button"
                   key={time}
@@ -142,11 +142,9 @@ export default function TaskModal({ isOpen, onClose, onSave, editingTask, initia
             </div>
           </div>
 
-          {/* RECORRÊNCIA */}
+          {/* Tipo de Recorrência */}
           <div className="form-group">
-            <label className="label-icon">
-              <Repeat size={16} /> Repetição
-            </label>
+            <label>Repetição / Frequência</label>
             <div className="recurrence-options">
               <button
                 type="button"
@@ -160,7 +158,7 @@ export default function TaskModal({ isOpen, onClose, onSave, editingTask, initia
                 className={`btn-rec ${recurrenceType === "weekdays" ? "active" : ""}`}
                 onClick={() => setRecurrenceType("weekdays")}
               >
-                Dias úteis (Seg-Sex)
+                Seg a Sex
               </button>
               <button
                 type="button"
@@ -181,57 +179,83 @@ export default function TaskModal({ isOpen, onClose, onSave, editingTask, initia
                 className={`btn-rec ${recurrenceType === "once" ? "active" : ""}`}
                 onClick={() => setRecurrenceType("once")}
               >
-                Apenas {initialDate.slice(5).replace("-", "/")}
+                Apenas um dia
               </button>
             </div>
 
-            {/* SELEÇÃO DE DIAS PERSONALIZADOS */}
+            {/* Dias personalizados */}
             {recurrenceType === "custom" && (
               <div className="custom-days-selector">
-                {WEEK_DAYS.map((d) => (
+                {[
+                  { label: "D", val: 0 },
+                  { label: "S", val: 1 },
+                  { label: "T", val: 2 },
+                  { label: "Q", val: 3 },
+                  { label: "Q", val: 4 },
+                  { label: "S", val: 5 },
+                  { label: "S", val: 6 },
+                ].map((d) => (
                   <button
                     type="button"
-                    key={d.id}
-                    className={`day-circle ${selectedDays.includes(d.id) ? "selected" : ""}`}
-                    onClick={() => toggleDay(d.id)}
+                    key={d.val}
+                    className={`day-circle ${selectedDays.includes(d.val) ? "selected" : ""}`}
+                    onClick={() => handleToggleDay(d.val)}
                   >
                     {d.label}
                   </button>
                 ))}
               </div>
             )}
+
+            {/* Data única (Override) */}
+            {recurrenceType === "once" && (
+              <div style={{ marginTop: "8px" }}>
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="modal-date-input"
+                  required
+                />
+              </div>
+            )}
           </div>
 
-          {/* DATA LIMITE (OPCIONAL) */}
+          {/* Validade da tarefa */}
           {recurrenceType !== "once" && (
-            <div className="form-group until-group">
+            <div className="form-group">
               <label className="checkbox-until">
                 <input
                   type="checkbox"
-                  checked={hasUntilDate}
-                  onChange={(e) => setHasUntilDate(e.target.checked)}
+                  checked={hasUntil}
+                  onChange={(e) => setHasUntil(e.target.checked)}
                 />
-                <span>Definir data de término</span>
+                Definir data limite para encerrar esta rotina
               </label>
-              {hasUntilDate && (
+              {hasUntil && (
                 <input
                   type="date"
                   value={untilDate}
-                  min={initialDate}
                   onChange={(e) => setUntilDate(e.target.value)}
                   className="modal-date-input"
-                  required={hasUntilDate}
+                  required={hasUntil}
+                  style={{ marginTop: "6px" }}
                 />
               )}
             </div>
           )}
 
+          {/* Botões do Rodapé */}
           <div className="modal-footer">
-            <button type="button" className="btn-modal-cancel" onClick={onClose}>
+            <button
+              type="button"
+              className="btn-modal-cancel"
+              onClick={onClose}
+            >
               Cancelar
             </button>
             <button type="submit" className="btn-modal-save">
-              <Check size={16} /> Salvar Tarefa
+              <Check size={16} /> Salvar
             </button>
           </div>
         </form>
