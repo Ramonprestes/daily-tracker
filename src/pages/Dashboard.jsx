@@ -34,29 +34,28 @@ export default function Dashboard() {
       : false
   );
 
-  // Carregar tarefas e status da data selecionada
+  // 1. Carregar tarefas e status da data
   useEffect(() => {
     async function loadData() {
-      if (!currentUser) return;
+      if (!currentUser?.uid) return;
       try {
         setLoading(true);
         const generalList = await getGeneralTasks(currentUser.uid);
         setTarefas(sortTasksByTime(generalList || []));
 
         const daySnap = await getDailySnapshot(currentUser.uid, selectedDate);
-        
-        // Compatibilidade com formato novo e formato antigo
         let finalMap = {};
+
         if (daySnap?.tarefasStatusMap) {
           finalMap = daySnap.tarefasStatusMap;
         } else if (Array.isArray(daySnap?.tarefasConcluidas)) {
           daySnap.tarefasConcluidas.forEach((id) => {
-            finalMap[id] = { status: "done", completedAt: "Feito" };
+            finalMap[String(id)] = { status: "done", completedAt: "Feito" };
           });
         }
         setTarefasStatusMap(finalMap);
       } catch (err) {
-        console.error("Erro ao carregar snapshot:", err);
+        console.error("Erro ao carregar dados:", err);
       } finally {
         setLoading(false);
       }
@@ -65,46 +64,60 @@ export default function Dashboard() {
     loadData();
   }, [currentUser, selectedDate]);
 
-  // Atualizar status de uma tarefa (com atualização de tela imediata)
-  const handleSetTaskStatus = async (taskId, statusObject) => {
-    setTarefasStatusMap((prev) => {
-      const updated = { ...prev };
-      if (!statusObject) {
-        delete updated[taskId];
-      } else {
-        updated[taskId] = statusObject;
-      }
+  // 2. Atualizar status de forma direta e instantânea
+  const handleSetTaskStatus = (taskId, statusObject) => {
+    const key = String(taskId);
+    const updatedMap = { ...tarefasStatusMap };
 
-      // Salva em segundo plano sem travar a interface
-      if (currentUser) {
-        const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
-        saveDailySnapshot(currentUser.uid, selectedDate, {
-          tarefasStatusMap: updated,
-          totalTarefas: activeTasks.length,
-        }).catch((err) => console.error("Erro ao salvar no Firestore:", err));
-      }
+    if (!statusObject) {
+      delete updatedMap[key];
+    } else {
+      updatedMap[key] = statusObject;
+    }
 
-      return updated;
-    });
+    // Atualização visual imediata
+    setTarefasStatusMap(updatedMap);
+
+    // Persistência no Firebase
+    if (currentUser?.uid) {
+      const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
+      saveDailySnapshot(currentUser.uid, selectedDate, {
+        tarefasStatusMap: updatedMap,
+        totalTarefas: activeTasks.length,
+      }).catch((err) => console.error("Erro ao salvar status no Firestore:", err));
+    }
   };
 
   const handleAddTask = async (newTask) => {
-    const updated = sortTasksByTime([...tarefas, newTask]);
+    const updated = sortTasksByTime([...tarefas, { ...newTask, id: String(newTask.id) }]);
     setTarefas(updated);
-    if (currentUser) await saveGeneralTasks(currentUser.uid, updated);
+    if (currentUser?.uid) await saveGeneralTasks(currentUser.uid, updated);
   };
 
   const handleEditTask = async (taskId, updatedData) => {
-    const updated = tarefas.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t));
+    const key = String(taskId);
+    const updated = tarefas.map((t) => (String(t.id) === key ? { ...t, ...updatedData } : t));
     const sorted = sortTasksByTime(updated);
     setTarefas(sorted);
-    if (currentUser) await saveGeneralTasks(currentUser.uid, sorted);
+    if (currentUser?.uid) await saveGeneralTasks(currentUser.uid, sorted);
   };
 
   const handleDeleteTask = async (taskId) => {
-    const updated = tarefas.filter((t) => t.id !== taskId);
+    const key = String(taskId);
+    const updated = tarefas.filter((t) => String(t.id) !== key);
     setTarefas(updated);
-    if (currentUser) await saveGeneralTasks(currentUser.uid, updated);
+
+    const updatedMap = { ...tarefasStatusMap };
+    delete updatedMap[key];
+    setTarefasStatusMap(updatedMap);
+
+    if (currentUser?.uid) {
+      await saveGeneralTasks(currentUser.uid, updated);
+      await saveDailySnapshot(currentUser.uid, selectedDate, {
+        tarefasStatusMap: updatedMap,
+        totalTarefas: updated.length,
+      });
+    }
   };
 
   const handleSelectDay = (dateStr) => {
@@ -120,86 +133,4 @@ export default function Dashboard() {
       const doc = new jsPDF();
       doc.setFontSize(18);
       doc.setTextColor(30, 41, 59);
-      doc.text("Relatório de Produtividade Diária", 14, 20);
-
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Usuário: ${currentUser?.email || ""}`, 14, 28);
-      doc.text(`Data: ${selectedDate}`, 14, 34);
-
-      const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
-      const rows = activeTasks.map((t) => {
-        const rec = tarefasStatusMap[t.id];
-        let statusStr = "PENDENTE";
-        if (rec?.status === "done") {
-          statusStr = rec.completedAt ? `CONCLUÍDO (${rec.completedAt})` : "CONCLUÍDO";
-        } else if (rec?.status === "failed") {
-          statusStr = "NÃO REALIZADO";
-        }
-        return [t.horario, t.tarefa, t.duracao || "-", statusStr];
-      });
-
-      autoTable(doc, {
-        startY: 42,
-        head: [["Horário", "Tarefa", "Duração", "Status"]],
-        body: rows,
-        theme: "grid",
-        headStyles: { fillColor: [2, 132, 199] },
-      });
-
-      doc.save(`relatorio-${selectedDate}.pdf`);
-    } catch (err) {
-      console.error("Erro ao gerar PDF:", err);
-    }
-  };
-
-  const handleRequestNotification = async () => {
-    if (!("Notification" in window)) return;
-    const perm = await Notification.requestPermission();
-    setNotificationsEnabled(perm === "granted");
-  };
-
-  return (
-    <div className="app-container">
-      <Navbar
-        currentUser={currentUser}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        editMode={editMode}
-        setEditMode={setEditMode}
-        notificationsEnabled={notificationsEnabled}
-        onRequestNotification={handleRequestNotification}
-        onExportPDF={handleExportPDF}
-        onLogout={logout}
-      />
-
-      <main className="main-content">
-        {currentView === "daily" && (
-          <DailyTimeline
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            tarefas={tarefas}
-            tarefasStatusMap={tarefasStatusMap}
-            onSetTaskStatus={handleSetTaskStatus}
-            onAddTask={handleAddTask}
-            onEditTask={handleEditTask}
-            onDeleteTask={handleDeleteTask}
-            loading={loading}
-          />
-        )}
-
-        {currentView === "weekly" && (
-          <WeeklyPlanner currentUser={currentUser} onSelectDay={handleSelectDay} />
-        )}
-
-        {currentView === "monthly" && (
-          <MonthlyPlanner currentUser={currentUser} onSelectDay={handleSelectDay} />
-        )}
-
-        {currentView === "stats" && (
-          <PerformanceStats currentUser={currentUser} />
-        )}
-      </main>
-    </div>
-  );
-}
+      doc.text("Relatório de Produtividade Diária",

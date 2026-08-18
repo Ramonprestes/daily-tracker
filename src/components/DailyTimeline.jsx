@@ -39,7 +39,6 @@ export default function DailyTimeline({
   const [editingTask, setEditingTask] = useState(null);
   const [, setTick] = useState(0);
 
-  // Atualiza tags de atraso a cada 30 segundos
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 30000);
     return () => clearInterval(timer);
@@ -67,38 +66,43 @@ export default function DailyTimeline({
   const safeTasks = Array.isArray(tarefas) ? tarefas : [];
   const displayTasks = resolveDayTasksWithOverrides(safeTasks, selectedDate);
 
-  // Contagem de Progresso
+  // Cálculo do progresso
   const totalTasks = displayTasks.length;
   const doneTasks = displayTasks.filter(
-    (t) => tarefasStatusMap[t.id]?.status === "done"
+    (t) => tarefasStatusMap[String(t.id)]?.status === "done"
   ).length;
   const progressPercent =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  // Clique de Alternância: Pendente <-> Feito
-  const handleToggleCheck = (taskId, scheduledTime) => {
-    const current = tarefasStatusMap[taskId]?.status;
+  // Toggle do Feito
+  const handleToggleCheck = (task, e) => {
+    if (e) e.stopPropagation();
+    const key = String(task.id);
+    const current = tarefasStatusMap[key]?.status;
+
     if (current === "done") {
-      onSetTaskStatus(taskId, null); // desmarcar
+      onSetTaskStatus(key, null); // Volta para pendente
     } else {
       const recordedAt = getCurrentTimeStr();
-      const delay = getTaskDelayInfo(scheduledTime, selectedDate);
-      onSetTaskStatus(taskId, {
+      const delay = getTaskDelayInfo(task.horario, selectedDate);
+      onSetTaskStatus(key, {
         status: "done",
         completedAt: recordedAt,
-        isLate: delay.isOverdue,
+        isLate: Boolean(delay.isOverdue),
       });
     }
   };
 
-  // Marcar como "Não Feito"
-  const handleToggleNotDone = (e, taskId) => {
-    e.stopPropagation();
-    const current = tarefasStatusMap[taskId]?.status;
+  // Toggle do Não Feito
+  const handleToggleNotDone = (task, e) => {
+    if (e) e.stopPropagation();
+    const key = String(task.id);
+    const current = tarefasStatusMap[key]?.status;
+
     if (current === "failed") {
-      onSetTaskStatus(taskId, null);
+      onSetTaskStatus(key, null); // Volta para pendente
     } else {
-      onSetTaskStatus(taskId, {
+      onSetTaskStatus(key, {
         status: "failed",
         markedAt: getCurrentTimeStr(),
       });
@@ -122,7 +126,7 @@ export default function DailyTimeline({
 
   return (
     <div className="daily-view">
-      {/* BARRA DE CONTROLES */}
+      {/* CONTROLES */}
       <div className="controls-bar">
         <div className="date-picker-wrap">
           <Calendar size={18} />
@@ -155,7 +159,7 @@ export default function DailyTimeline({
         </div>
       </div>
 
-      {/* TIMELINE DE TAREFAS */}
+      {/* LISTA */}
       <div className="timeline-container">
         {totalTasks === 0 ? (
           <div className="empty-state">
@@ -166,7 +170,8 @@ export default function DailyTimeline({
           </div>
         ) : (
           displayTasks.map((task) => {
-            const taskRecord = tarefasStatusMap[task.id] || {};
+            const key = String(task.id);
+            const taskRecord = tarefasStatusMap[key] || {};
             const isDone = taskRecord.status === "done";
             const isFailed = taskRecord.status === "failed";
             const delayInfo = getTaskDelayInfo(task.horario, selectedDate);
@@ -175,13 +180,16 @@ export default function DailyTimeline({
 
             return (
               <div
-                key={task.id}
+                key={key}
                 className={`task-row ${isDone ? "completed" : ""} ${isFailed ? "failed-row" : ""} ${isLateWarning ? "late-warning" : ""}`}
-                onClick={() => handleToggleCheck(task.id, task.horario)}
-                style={{ cursor: "pointer" }}
+                onClick={(e) => handleToggleCheck(task, e)}
+                style={{ cursor: "pointer", userSelect: "none" }}
               >
                 <div className="task-main">
-                  <div style={{ display: "flex", alignItems: "center" }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center" }}
+                    onClick={(e) => handleToggleCheck(task, e)}
+                  >
                     {isDone ? (
                       <CheckSquare className="task-icon checked" size={22} />
                     ) : (
@@ -211,7 +219,6 @@ export default function DailyTimeline({
                         </span>
                       )}
 
-                      {/* TAGS AO VIVO */}
                       {isDone && taskRecord.completedAt && (
                         <span
                           className={`task-tag ${taskRecord.isLate ? "tag-late-done" : "tag-ontime-done"}`}
@@ -237,46 +244,9 @@ export default function DailyTimeline({
                   </div>
                 </div>
 
-                {/* AÇÕES */}
+                {/* BOTÕES DE AÇÃO */}
                 <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className={`btn-action-icon not-done ${isFailed ? "active-failed" : ""}`}
-                    onClick={(e) => handleToggleNotDone(e, task.id)}
-                    title={isFailed ? "Cancelar 'Não Feito'" : "Marcar como Não Feito"}
-                  >
-                    <XCircle size={16} />
-                  </button>
-                  <button
-                    className="btn-action-icon edit"
-                    onClick={(e) => openEditTaskModal(task, e)}
-                    title="Editar Tarefa"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    className="btn-action-icon delete"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteTask(task.id);
-                    }}
-                    title="Excluir Tarefa"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      <TaskModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleSaveModal}
-        editingTask={editingTask}
-        initialDate={selectedDate}
-      />
-    </div>
-  );
-}
+                    onClick={(e) => handleToggleNotDone(task, e)}
+                    title={isFailed ? "Cancelar
