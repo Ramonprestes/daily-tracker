@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,7 +9,6 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
 
   const { login, signup } = useAuth();
-  const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -23,9 +21,17 @@ export default function Auth() {
       } else {
         await signup(email, password);
       }
-      navigate("/");
     } catch (err) {
-      setError("Erro ao autenticar: " + err.message);
+      console.error(err);
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setError("E-mail ou senha incorretos.");
+      } else if (err.code === "auth/email-already-in-use") {
+        setError("Este e-mail já está cadastrado.");
+      } else if (err.code === "auth/weak-password") {
+        setError("A senha deve ter pelo menos 6 caracteres.");
+      } else {
+        setError("Erro ao autenticar: " + (err.message || "Tente novamente."));
+      }
     } finally {
       setLoading(false);
     }
@@ -46,10 +52,10 @@ export default function Auth() {
             <label>E-mail</label>
             <input
               type="email"
-              required
               placeholder="seu@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
@@ -57,24 +63,29 @@ export default function Auth() {
             <label>Senha</label>
             <input
               type="password"
-              required
               placeholder="Mínimo 6 caracteres"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
 
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Carregando..." : isLogin ? "Entrar" : "Cadastrar"}
+            {loading ? "Processando..." : isLogin ? "Entrar" : "Cadastrar"}
           </button>
         </form>
 
         <div className="auth-toggle">
-          {isLogin ? "Não tem uma conta?" : "Já possui uma conta?"}{" "}
+          <span>
+            {isLogin ? "Não tem uma conta?" : "Já possui uma conta?"}
+          </span>
           <button
             type="button"
             className="btn-link"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError("");
+            }}
           >
             {isLogin ? "Cadastre-se" : "Entrar"}
           </button>
