@@ -75,7 +75,6 @@ export default function DailyTimeline({
   const progressPercent =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  // Toggle do status Concluído
   const handleToggleCheck = (task) => {
     const key = String(task.id || `${task.horario}_${task.tarefa}`);
     const currentStatus = tarefasStatusMap[key]?.status;
@@ -93,7 +92,6 @@ export default function DailyTimeline({
     }
   };
 
-  // Toggle do status Não Realizado
   const handleToggleNotDone = (task, e) => {
     if (e) e.stopPropagation();
     const key = String(task.id || `${task.horario}_${task.tarefa}`);
@@ -121,51 +119,56 @@ export default function DailyTimeline({
   };
 
   if (loading) {
-    return <p className="loading-text">Carregando rotina...</p>;
+    return <p style={{ textAlign: "center", color: "var(--text-muted)", marginTop: "40px" }}>Carregando rotina...</p>;
   }
 
   return (
     <div className="daily-view">
-      {/* BARRA DE CONTROLES */}
-      <div className="controls-bar">
-        <div className="date-picker-wrap">
-          <Calendar size={18} />
+      {/* CONTROLES FLUTUANTES */}
+      <div className="controls-bar-floating">
+        <div className="date-selector-floating">
+          <Calendar size={17} color="var(--brand-cyan)" />
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
           />
           {!isToday && (
-            <button className="btn-today" onClick={() => setSelectedDate(todayStr)}>
-              <RotateCcw size={13} /> Hoje
+            <button className="btn-today-pill" onClick={() => setSelectedDate(todayStr)}>
+              <RotateCcw size={12} /> Hoje
             </button>
           )}
         </div>
 
-        <button className="btn-add-primary" onClick={openNewTaskModal}>
+        <button className="btn-create-task-floating" onClick={openNewTaskModal}>
           <Plus size={18} /> Nova Tarefa
         </button>
 
-        <div className="progress-card">
-          <div className="progress-info">
-            <span>
-              {isToday ? "Progresso de hoje" : `Progresso (${selectedDate.slice(5).replace("-", "/")})`}
-            </span>
+        <div className="progress-card-floating">
+          <div className="progress-header-row">
+            <span>{isToday ? "Progresso de hoje" : `Progresso (${selectedDate.slice(5).replace("-", "/")})`}</span>
             <strong>{progressPercent}%</strong>
           </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progressPercent}%` }}></div>
+          <div className="progress-track-bg">
+            <div className="progress-fill-bar" style={{ width: `${progressPercent}%` }}></div>
           </div>
         </div>
       </div>
 
-      {/* TIMELINE DE TAREFAS */}
-      <div className="timeline-container">
+      {/* CARDS FLUTUANTES DA TIMELINE */}
+      <div className="timeline-floating-container">
         {totalTasks === 0 ? (
-          <div className="empty-state">
-            <p>Nenhuma tarefa programada para este dia.</p>
-            <button className="btn-add-primary" onClick={openNewTaskModal}>
-              <Plus size={16} /> Adicionar Tarefa
+          <div style={{
+            textAlign: "center",
+            padding: "48px 20px",
+            background: "var(--surface-card)",
+            borderRadius: "var(--radius-lg)",
+            border: "1px dashed var(--border-subtle)",
+            color: "var(--text-muted)"
+          }}>
+            <p style={{ marginBottom: "14px" }}>Nenhuma tarefa programada para este dia.</p>
+            <button className="btn-create-task-floating" style={{ margin: "0 auto" }} onClick={openNewTaskModal}>
+              <Plus size={16} /> Adicionar Primeira Tarefa
             </button>
           </div>
         ) : (
@@ -181,12 +184,11 @@ export default function DailyTimeline({
             return (
               <div
                 key={key}
-                className={`task-row ${isDone ? "completed" : ""} ${isFailed ? "failed-row" : ""} ${isLateWarning ? "late-warning" : ""}`}
+                className={`task-card-floating ${isDone ? "completed" : ""} ${isFailed ? "failed-row" : ""} ${isLateWarning ? "late-warning" : ""}`}
                 onClick={() => handleToggleCheck(task)}
                 style={{ cursor: "pointer", userSelect: "none" }}
               >
-                <div className="task-main">
-                  {/* ÍCONE DE CHECK */}
+                <div className="task-main-floating">
                   <div style={{ display: "flex", alignItems: "center", pointerEvents: "none" }}>
                     {isDone ? (
                       <CheckSquare className="task-icon checked" size={24} color="#38bdf8" />
@@ -195,32 +197,30 @@ export default function DailyTimeline({
                     )}
                   </div>
 
-                  <span className="task-badge-time">{task.horario}</span>
+                  <span className="task-time-pill">{task.horario}</span>
 
-                  <div className="task-details-col">
-                    <span className="task-title">{task.tarefa}</span>
+                  <div className="task-info-block">
+                    <span className="task-name">{task.tarefa}</span>
 
-                    <div className="task-tags">
+                    <div className="task-badges-row">
                       {task.duracao && (
-                        <span className="task-tag duration">
+                        <span className="badge-tag duration">
                           <Clock size={11} /> {task.duracao}
                         </span>
                       )}
 
                       {task.recurrenceType === "once" ? (
-                        <span className="task-tag override-tag">
+                        <span className="badge-tag override-tag">
                           <Sparkles size={11} /> Substituição
                         </span>
                       ) : (
-                        <span className="task-tag recurrence">
+                        <span className="badge-tag recurrence">
                           <Repeat size={11} /> {recLabel}
                         </span>
                       )}
 
                       {isDone && taskRecord.completedAt && (
-                        <span
-                          className={`task-tag ${taskRecord.isLate ? "tag-late-done" : "tag-ontime-done"}`}
-                        >
+                        <span className={`badge-tag ${taskRecord.isLate ? "tag-late-done" : "tag-ontime-done"}`}>
                           {taskRecord.isLate
                             ? `Feito c/ atraso às ${taskRecord.completedAt}`
                             : `Feito às ${taskRecord.completedAt}`}
@@ -228,13 +228,13 @@ export default function DailyTimeline({
                       )}
 
                       {isLateWarning && (
-                        <span className="task-tag tag-delayed">
+                        <span className="badge-tag tag-delayed">
                           <AlertTriangle size={11} /> +15m excedido
                         </span>
                       )}
 
                       {isFailed && (
-                        <span className="task-tag tag-failed-badge">
+                        <span className="badge-tag tag-failed">
                           Não realizado
                         </span>
                       )}
@@ -242,24 +242,23 @@ export default function DailyTimeline({
                   </div>
                 </div>
 
-                {/* BOTÕES DE AÇÃO */}
-                <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                <div className="task-actions-row" onClick={(e) => e.stopPropagation()}>
                   <button
-                    className={`btn-action-icon not-done ${isFailed ? "active-failed" : ""}`}
+                    className={`btn-card-action not-done ${isFailed ? "active-failed" : ""}`}
                     onClick={(e) => handleToggleNotDone(task, e)}
                     title={isFailed ? "Cancelar 'Não Feito'" : "Marcar como Não Feito"}
                   >
                     <XCircle size={16} />
                   </button>
                   <button
-                    className="btn-action-icon edit"
+                    className="btn-card-action edit"
                     onClick={(e) => openEditTaskModal(task, e)}
                     title="Editar Tarefa"
                   >
                     <Edit2 size={16} />
                   </button>
                   <button
-                    className="btn-action-icon delete"
+                    className="btn-card-action delete"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteTask(task.id);
