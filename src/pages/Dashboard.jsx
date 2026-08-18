@@ -17,6 +17,14 @@ import {
   resolveDayTasksWithOverrides,
 } from "../utils/dateUtils";
 
+// Garante que toda tarefa possua um ID único estável
+function normalizeTasksList(list = []) {
+  return list.map((t, idx) => ({
+    ...t,
+    id: String(t.id || `${t.horario || "00:00"}_${t.tarefa || idx}`),
+  }));
+}
+
 export default function Dashboard() {
   const { currentUser, logout } = useAuth();
 
@@ -34,14 +42,15 @@ export default function Dashboard() {
       : false
   );
 
-  // Carregar dados
+  // Carrega tarefas e status da data
   useEffect(() => {
     async function loadData() {
       if (!currentUser?.uid) return;
       try {
         setLoading(true);
         const generalList = await getGeneralTasks(currentUser.uid);
-        setTarefas(sortTasksByTime(generalList || []));
+        const normalized = normalizeTasksList(generalList || []);
+        setTarefas(sortTasksByTime(normalized));
 
         const daySnap = await getDailySnapshot(currentUser.uid, selectedDate);
         let finalMap = {};
@@ -49,13 +58,13 @@ export default function Dashboard() {
         if (daySnap?.tarefasStatusMap) {
           finalMap = daySnap.tarefasStatusMap;
         } else if (Array.isArray(daySnap?.tarefasConcluidas)) {
-          daySnap.tarefasConcluidas.forEach((id) => {
-            finalMap[String(id)] = { status: "done", completedAt: "Feito" };
+          daySnap.tarefasConcluidas.forEach((val) => {
+            finalMap[String(val)] = { status: "done", completedAt: "Feito" };
           });
         }
         setTarefasStatusMap(finalMap);
       } catch (err) {
-        console.error("Erro ao carregar:", err);
+        console.error("Erro ao carregar dados:", err);
       } finally {
         setLoading(false);
       }
@@ -64,7 +73,7 @@ export default function Dashboard() {
     loadData();
   }, [currentUser, selectedDate]);
 
-  // Modificar status da tarefa
+  // Atualiza status da tarefa no estado e no Firebase
   const handleSetTaskStatus = (taskId, statusObject) => {
     const key = String(taskId);
 
@@ -89,7 +98,8 @@ export default function Dashboard() {
   };
 
   const handleAddTask = async (newTask) => {
-    const updated = sortTasksByTime([...tarefas, { ...newTask, id: String(newTask.id || Date.now()) }]);
+    const generatedId = String(newTask.id || `${newTask.horario}_${newTask.tarefa}_${Date.now()}`);
+    const updated = sortTasksByTime([...tarefas, { ...newTask, id: generatedId }]);
     setTarefas(updated);
     if (currentUser?.uid) await saveGeneralTasks(currentUser.uid, updated);
   };
@@ -143,7 +153,8 @@ export default function Dashboard() {
 
       const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
       const rows = activeTasks.map((t) => {
-        const rec = tarefasStatusMap[String(t.id)];
+        const key = String(t.id);
+        const rec = tarefasStatusMap[key];
         let statusStr = "PENDENTE";
         if (rec?.status === "done") {
           statusStr = rec.completedAt ? `CONCLUÍDO (${rec.completedAt})` : "CONCLUÍDO";

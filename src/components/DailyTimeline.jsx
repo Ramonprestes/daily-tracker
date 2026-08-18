@@ -67,18 +67,20 @@ export default function DailyTimeline({
   const displayTasks = resolveDayTasksWithOverrides(safeTasks, selectedDate);
 
   const totalTasks = displayTasks.length;
-  const doneTasks = displayTasks.filter(
-    (t) => tarefasStatusMap[String(t.id)] && tarefasStatusMap[String(t.id)].status === "done"
-  ).length;
+  const doneTasks = displayTasks.filter((t) => {
+    const key = String(t.id || `${t.horario}_${t.tarefa}`);
+    return tarefasStatusMap[key]?.status === "done";
+  }).length;
+
   const progressPercent =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  const handleToggleCheck = (task, e) => {
-    if (e) e.stopPropagation();
-    const key = String(task.id);
-    const current = tarefasStatusMap[key] ? tarefasStatusMap[key].status : null;
+  // Toggle do status Concluído
+  const handleToggleCheck = (task) => {
+    const key = String(task.id || `${task.horario}_${task.tarefa}`);
+    const currentStatus = tarefasStatusMap[key]?.status;
 
-    if (current === "done") {
+    if (currentStatus === "done") {
       onSetTaskStatus(key, null);
     } else {
       const recordedAt = getCurrentTimeStr();
@@ -91,12 +93,13 @@ export default function DailyTimeline({
     }
   };
 
+  // Toggle do status Não Realizado
   const handleToggleNotDone = (task, e) => {
     if (e) e.stopPropagation();
-    const key = String(task.id);
-    const current = tarefasStatusMap[key] ? tarefasStatusMap[key].status : null;
+    const key = String(task.id || `${task.horario}_${task.tarefa}`);
+    const currentStatus = tarefasStatusMap[key]?.status;
 
-    if (current === "failed") {
+    if (currentStatus === "failed") {
       onSetTaskStatus(key, null);
     } else {
       onSetTaskStatus(key, {
@@ -111,10 +114,10 @@ export default function DailyTimeline({
     if (task.recurrenceType === "weekdays") return "Seg-Sex";
     if (task.recurrenceType === "weekends") return "Fim de sem.";
     if (task.recurrenceType === "custom") {
-      const daysMap = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sab", 0: "Dom" };
+      const daysMap = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb", 0: "Dom" };
       return (task.selectedDays || []).map((d) => daysMap[d]).join(", ");
     }
-    return "Diario";
+    return "Diário";
   };
 
   if (loading) {
@@ -123,6 +126,7 @@ export default function DailyTimeline({
 
   return (
     <div className="daily-view">
+      {/* BARRA DE CONTROLES */}
       <div className="controls-bar">
         <div className="date-picker-wrap">
           <Calendar size={18} />
@@ -155,6 +159,7 @@ export default function DailyTimeline({
         </div>
       </div>
 
+      {/* TIMELINE DE TAREFAS */}
       <div className="timeline-container">
         {totalTasks === 0 ? (
           <div className="empty-state">
@@ -165,7 +170,7 @@ export default function DailyTimeline({
           </div>
         ) : (
           displayTasks.map((task) => {
-            const key = String(task.id);
+            const key = String(task.id || `${task.horario}_${task.tarefa}`);
             const taskRecord = tarefasStatusMap[key] || {};
             const isDone = taskRecord.status === "done";
             const isFailed = taskRecord.status === "failed";
@@ -177,18 +182,16 @@ export default function DailyTimeline({
               <div
                 key={key}
                 className={`task-row ${isDone ? "completed" : ""} ${isFailed ? "failed-row" : ""} ${isLateWarning ? "late-warning" : ""}`}
-                onClick={(e) => handleToggleCheck(task, e)}
+                onClick={() => handleToggleCheck(task)}
                 style={{ cursor: "pointer", userSelect: "none" }}
               >
                 <div className="task-main">
-                  <div
-                    style={{ display: "flex", alignItems: "center" }}
-                    onClick={(e) => handleToggleCheck(task, e)}
-                  >
+                  {/* ÍCONE DE CHECK */}
+                  <div style={{ display: "flex", alignItems: "center", pointerEvents: "none" }}>
                     {isDone ? (
-                      <CheckSquare className="task-icon checked" size={22} />
+                      <CheckSquare className="task-icon checked" size={24} color="#38bdf8" />
                     ) : (
-                      <Square className="task-icon" size={22} />
+                      <Square className="task-icon" size={24} color="#64748b" />
                     )}
                   </div>
 
@@ -206,7 +209,7 @@ export default function DailyTimeline({
 
                       {task.recurrenceType === "once" ? (
                         <span className="task-tag override-tag">
-                          <Sparkles size={11} /> Substituicao
+                          <Sparkles size={11} /> Substituição
                         </span>
                       ) : (
                         <span className="task-tag recurrence">
@@ -219,8 +222,8 @@ export default function DailyTimeline({
                           className={`task-tag ${taskRecord.isLate ? "tag-late-done" : "tag-ontime-done"}`}
                         >
                           {taskRecord.isLate
-                            ? `Feito c/ atraso as ${taskRecord.completedAt}`
-                            : `Feito as ${taskRecord.completedAt}`}
+                            ? `Feito c/ atraso às ${taskRecord.completedAt}`
+                            : `Feito às ${taskRecord.completedAt}`}
                         </span>
                       )}
 
@@ -232,18 +235,19 @@ export default function DailyTimeline({
 
                       {isFailed && (
                         <span className="task-tag tag-failed-badge">
-                          Nao realizado
+                          Não realizado
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
 
+                {/* BOTÕES DE AÇÃO */}
                 <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className={`btn-action-icon not-done ${isFailed ? "active-failed" : ""}`}
                     onClick={(e) => handleToggleNotDone(task, e)}
-                    title={isFailed ? "Cancelar 'Nao Feito'" : "Marcar como Nao Feito"}
+                    title={isFailed ? "Cancelar 'Não Feito'" : "Marcar como Não Feito"}
                   >
                     <XCircle size={16} />
                   </button>
