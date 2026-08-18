@@ -30,7 +30,13 @@ export default function Dashboard() {
   const { currentUser, logout } = useAuth();
 
   // Data atual como padrão
-  const getTodayStr = () => new Date().toISOString().split("T")[0];
+  const getTodayStr = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [tipoRotina, setTipoRotina] = useState("semana");
   const [tarefas, setTarefas] = useState([]);
@@ -317,10 +323,12 @@ export default function Dashboard() {
     doc.save(`daily-tracker-${selectedDate}.pdf`);
   }
 
+  const currentTaskIds = new Set(tarefas.map((t) => t.id));
+  const validCompleted = tarefasConcluidas.filter((id) => currentTaskIds.has(id));
   const totalTasks = tarefas.length;
-  const completedTasks = tarefasConcluidas.length;
+  const completedTasks = validCompleted.length;
   const progressPercent =
-    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    totalTasks > 0 ? Math.min(100, Math.round((completedTasks / totalTasks) * 100)) : 0;
   const isToday = selectedDate === getTodayStr();
 
   return (
