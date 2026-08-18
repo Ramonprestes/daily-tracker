@@ -6,133 +6,151 @@ import WeeklyPlanner from "../components/WeeklyPlanner";
 import MonthlyPlanner from "../components/MonthlyPlanner";
 import PerformanceStats from "../components/PerformanceStats";
 import {
+  getGeneralTasks,
+  saveGeneralTasks,
   getDailySnapshot,
   saveDailySnapshot,
-  saveTemplate,
 } from "../services/plannerService";
-import { getLocalDateString, sortTasksByTime } from "../utils/dateUtils";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import {
+  getLocalDateString,
+  sortTasksByTime,
+  resolveDayTasksWithOverrides,
+} from "../utils/dateUtils";
 
 export default function Dashboard() {
   const { currentUser, logout } = useAuth();
 
-  // Navegação de Telas: 'daily' | 'weekly' | 'monthly' | 'stats'
   const [currentView, setCurrentView] = useState("daily");
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(new Date()));
-  const [tipoRotina, setTipoRotina] = useState("semana");
 
-  // Estado do Snapshot Diário
   const [tarefas, setTarefas] = useState([]);
-  const [tarefasConcluidas, setTarefasConcluidas] = useState([]);
+  const [tarefasStatusMap, setTarefasStatusMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
 
-  // Notificações
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     typeof window !== "undefined" && "Notification" in window
       ? Notification.permission === "granted"
       : false
   );
-  const [notifiedTasks, setNotifiedTasks] = useState(new Set());
 
-  // Carregar dados da data selecionada
+  // Carregar tarefas e status da data selecionada
   useEffect(() => {
-    async function loadDay() {
+    async function loadData() {
       if (!currentUser) return;
-      setLoading(true);
-      const snap = await getDailySnapshot(currentUser.uid, selectedDate, tipoRotina);
-      setTarefas(snap.tarefas);
-      setTarefasConcluidas(snap.tarefasConcluidas);
-      setTipoRotina(snap.tipoRotina);
-      setLoading(false);
+      try {
+        setLoading(true);
+        const generalList = await getGeneralTasks(currentUser.uid);
+        setTarefas(sortTasksByTime(generalList || []));
+
+        const daySnap = await getDailySnapshot(currentUser.uid, selectedDate);
+        
+        // Compatibilidade com formato novo e formato antigo
+        let finalMap = {};
+        if (daySnap?.tarefasStatusMap) {
+          finalMap = daySnap.tarefasStatusMap;
+        } else if (Array.isArray(daySnap?.tarefasConcluidas)) {
+          daySnap.tarefasConcluidas.forEach((id) => {
+            finalMap[id] = { status: "done", completedAt: "Feito" };
+          });
+        }
+        setTarefasStatusMap(finalMap);
+      } catch (err) {
+        console.error("Erro ao carregar snapshot:", err);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    loadDay();
+    loadData();
   }, [currentUser, selectedDate]);
 
-  // Salvar no Firebase sempre que as tarefas ou conclusões mudarem
-  const persistChanges = async (newTarefas, newConcluidas, newTipo = tipoRotina) => {
-    if (!currentUser) return;
-    await saveDailySnapshot(currentUser.uid, selectedDate, {
-      tarefas: newTarefas,
-      tarefasConcluidas: newConcluidas,
-      tipoRotina: newTipo,
+  // Atualizar status de uma tarefa (com atualização de tela imediata)
+  const handleSetTaskStatus = async (taskId, statusObject) => {
+    setTarefasStatusMap((prev) => {
+      const updated = { ...prev };
+      if (!statusObject) {
+        delete updated[taskId];
+      } else {
+        updated[taskId] = statusObject;
+      }
+
+      // Salva em segundo plano sem travar a interface
+      if (currentUser) {
+        const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
+        saveDailySnapshot(currentUser.uid, selectedDate, {
+          tarefasStatusMap: updated,
+          totalTarefas: activeTasks.length,
+        }).catch((err) => console.error("Erro ao salvar no Firestore:", err));
+      }
+
+      return updated;
     });
   };
 
-  // Toggle de conclusão
-  const handleToggleTask = async (taskId) => {
-    let updated;
-    if (tarefasConcluidas.includes(taskId)) {
-      updated = tarefasConcluidas.filter((id) => id !== taskId);
-    } else {
-      updated = [...tarefasConcluidas, taskId];
-    }
-    setTarefasConcluidas(updated);
-    await persistChanges(tarefas, updated);
-  };
-
-  // Adicionar Tarefa
   const handleAddTask = async (newTask) => {
     const updated = sortTasksByTime([...tarefas, newTask]);
     setTarefas(updated);
-    await persistChanges(updated, tarefasConcluidas);
-    await saveTemplate(currentUser.uid, tipoRotina, updated);
+    if (currentUser) await saveGeneralTasks(currentUser.uid, updated);
   };
 
-  // Editar Tarefa
   const handleEditTask = async (taskId, updatedData) => {
     const updated = tarefas.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t));
     const sorted = sortTasksByTime(updated);
     setTarefas(sorted);
-    await persistChanges(sorted, tarefasConcluidas);
-    await saveTemplate(currentUser.uid, tipoRotina, sorted);
+    if (currentUser) await saveGeneralTasks(currentUser.uid, sorted);
   };
 
-  // Excluir Tarefa
   const handleDeleteTask = async (taskId) => {
     const updated = tarefas.filter((t) => t.id !== taskId);
-    const updatedConcluidas = tarefasConcluidas.filter((id) => id !== taskId);
     setTarefas(updated);
-    setTarefasConcluidas(updatedConcluidas);
-    await persistChanges(updated, updatedConcluidas);
-    await saveTemplate(currentUser.uid, tipoRotina, updated);
+    if (currentUser) await saveGeneralTasks(currentUser.uid, updated);
   };
 
-  // Ir para dia clicado a partir do planner semanal ou mensal
   const handleSelectDay = (dateStr) => {
     setSelectedDate(dateStr);
     setCurrentView("daily");
   };
 
-  // Exportar PDF
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.setTextColor(30, 41, 59);
-    doc.text("Relatório de Produtividade Diária", 14, 20);
+  const handleExportPDF = async () => {
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
 
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Usuário: ${currentUser?.email}`, 14, 28);
-    doc.text(`Data: ${selectedDate} | Rotina: ${tipoRotina.toUpperCase()}`, 14, 34);
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.text("Relatório de Produtividade Diária", 14, 20);
 
-    const rows = tarefas.map((t) => [
-      t.horario,
-      t.tarefa,
-      tarefasConcluidas.includes(t.id) ? "CONCLUÍDO" : "PENDENTE",
-    ]);
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Usuário: ${currentUser?.email || ""}`, 14, 28);
+      doc.text(`Data: ${selectedDate}`, 14, 34);
 
-    autoTable(doc, {
-      startY: 42,
-      head: [["Horário", "Tarefa", "Status"]],
-      body: rows,
-      theme: "grid",
-      headStyles: { fillColor: [2, 132, 199] },
-    });
+      const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
+      const rows = activeTasks.map((t) => {
+        const rec = tarefasStatusMap[t.id];
+        let statusStr = "PENDENTE";
+        if (rec?.status === "done") {
+          statusStr = rec.completedAt ? `CONCLUÍDO (${rec.completedAt})` : "CONCLUÍDO";
+        } else if (rec?.status === "failed") {
+          statusStr = "NÃO REALIZADO";
+        }
+        return [t.horario, t.tarefa, t.duracao || "-", statusStr];
+      });
 
-    doc.save(`relatorio-${selectedDate}.pdf`);
+      autoTable(doc, {
+        startY: 42,
+        head: [["Horário", "Tarefa", "Duração", "Status"]],
+        body: rows,
+        theme: "grid",
+        headStyles: { fillColor: [2, 132, 199] },
+      });
+
+      doc.save(`relatorio-${selectedDate}.pdf`);
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+    }
   };
 
   const handleRequestNotification = async () => {
@@ -160,34 +178,22 @@ export default function Dashboard() {
           <DailyTimeline
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
-            tipoRotina={tipoRotina}
-            setTipoRotina={(t) => {
-              setTipoRotina(t);
-              persistChanges(tarefas, tarefasConcluidas, t);
-            }}
             tarefas={tarefas}
-            tarefasConcluidas={tarefasConcluidas}
-            onToggleTask={handleToggleTask}
+            tarefasStatusMap={tarefasStatusMap}
+            onSetTaskStatus={handleSetTaskStatus}
             onAddTask={handleAddTask}
             onEditTask={handleEditTask}
             onDeleteTask={handleDeleteTask}
-            editMode={editMode}
-            setEditMode={setEditMode}
+            loading={loading}
           />
         )}
 
         {currentView === "weekly" && (
-          <WeeklyPlanner
-            currentUser={currentUser}
-            onSelectDay={handleSelectDay}
-          />
+          <WeeklyPlanner currentUser={currentUser} onSelectDay={handleSelectDay} />
         )}
 
         {currentView === "monthly" && (
-          <MonthlyPlanner
-            currentUser={currentUser}
-            onSelectDay={handleSelectDay}
-          />
+          <MonthlyPlanner currentUser={currentUser} onSelectDay={handleSelectDay} />
         )}
 
         {currentView === "stats" && (
