@@ -1,86 +1,97 @@
 import React, { useState, useEffect } from "react";
-import { X, Clock, Calendar, Check } from "lucide-react";
+import { X, Clock, Check } from "lucide-react";
+import { getLocalDateString } from "../utils/dateUtils";
+
+const PRESET_HOURS = [
+  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
+  "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
+  "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
+];
+
+const WEEKDAYS = [
+  { id: 1, label: "S" },
+  { id: 2, label: "T" },
+  { id: 3, label: "Q" },
+  { id: 4, label: "Q" },
+  { id: 5, label: "S" },
+  { id: 6, label: "S" },
+  { id: 0, label: "D" },
+];
 
 export default function TaskModal({
   isOpen,
   onClose,
   onSave,
-  editingTask = null,
+  editingTask,
   initialDate,
 }) {
   const [tarefa, setTarefa] = useState("");
   const [horario, setHorario] = useState("08:00");
-  const [duracao, setDuracao] = useState("30m");
+  const [duracao, setDuracao] = useState("30 min");
   const [recurrenceType, setRecurrenceType] = useState("daily"); // daily, weekdays, weekends, custom, once
-  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // 1=Seg..5=Sex
-  const [hasUntil, setHasUntil] = useState(false);
+  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]);
+  const [hasLimitDate, setHasLimitDate] = useState(false);
   const [untilDate, setUntilDate] = useState("");
-  const [targetDate, setTargetDate] = useState(initialDate || "");
+  const [targetDate, setTargetDate] = useState(initialDate || getLocalDateString(new Date()));
 
   useEffect(() => {
     if (editingTask) {
       setTarefa(editingTask.tarefa || "");
       setHorario(editingTask.horario || "08:00");
-      setDuracao(editingTask.duracao || "30m");
+      setDuracao(editingTask.duracao || "30 min");
       setRecurrenceType(editingTask.recurrenceType || "daily");
       setSelectedDays(editingTask.selectedDays || [1, 2, 3, 4, 5]);
-      setHasUntil(Boolean(editingTask.untilDate));
+      setHasLimitDate(Boolean(editingTask.untilDate));
       setUntilDate(editingTask.untilDate || "");
-      setTargetDate(editingTask.targetDate || initialDate || "");
+      setTargetDate(editingTask.targetDate || initialDate || getLocalDateString(new Date()));
     } else {
       setTarefa("");
       setHorario("08:00");
-      setDuracao("30m");
+      setDuracao("30 min");
       setRecurrenceType("daily");
       setSelectedDays([1, 2, 3, 4, 5]);
-      setHasUntil(false);
+      setHasLimitDate(false);
       setUntilDate("");
-      setTargetDate(initialDate || "");
+      setTargetDate(initialDate || getLocalDateString(new Date()));
     }
-  }, [editingTask, isOpen, initialDate]);
+  }, [editingTask, initialDate, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleToggleDay = (dayIndex) => {
-    if (selectedDays.includes(dayIndex)) {
-      setSelectedDays(selectedDays.filter((d) => d !== dayIndex));
+  const toggleDay = (dayId) => {
+    if (selectedDays.includes(dayId)) {
+      setSelectedDays(selectedDays.filter((d) => d !== dayId));
     } else {
-      setSelectedDays([...selectedDays, dayIndex].sort());
+      setSelectedDays([...selectedDays, dayId]);
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!tarefa.trim() || !horario) return;
+    if (!tarefa.trim()) return;
 
     const taskPayload = {
-      id: editingTask ? editingTask.id : Date.now().toString(),
+      id: editingTask?.id || `${horario}_${tarefa.trim()}_${Date.now()}`,
       tarefa: tarefa.trim(),
       horario,
       duracao,
       recurrenceType,
-      selectedDays: recurrenceType === "custom" ? selectedDays : undefined,
-      untilDate: hasUntil && recurrenceType !== "once" ? untilDate : undefined,
-      targetDate: recurrenceType === "once" ? targetDate : undefined,
+      selectedDays: recurrenceType === "custom" ? selectedDays : null,
+      untilDate: hasLimitDate ? untilDate : null,
+      targetDate: recurrenceType === "once" ? targetDate : null,
     };
 
     onSave(taskPayload);
     onClose();
   };
 
-  const quickTimes = [
-    "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
-    "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
-    "18:00", "19:00", "20:00", "21:00", "22:00", "23:00",
-  ];
-
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{editingTask ? "Editar Tarefa" : "Nova Tarefa na Rotina"}</h3>
           <button className="btn-close-modal" onClick={onClose}>
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
@@ -90,12 +101,12 @@ export default function TaskModal({
             <label>Nome da Tarefa</label>
             <input
               type="text"
-              placeholder="Ex: Treino na academia, Reunião de equipe..."
+              className="modal-input"
+              placeholder="Ex: Treino na academia, Reunião..."
               value={tarefa}
               onChange={(e) => setTarefa(e.target.value)}
-              required
-              className="modal-input"
               autoFocus
+              required
             />
           </div>
 
@@ -105,44 +116,44 @@ export default function TaskModal({
             <div className="time-custom-row">
               <input
                 type="time"
+                className="modal-time-input"
                 value={horario}
                 onChange={(e) => setHorario(e.target.value)}
                 required
-                className="modal-time-input"
               />
+
               <div className="duration-select">
-                <Clock size={15} />
+                <Clock size={16} />
                 <select
                   value={duracao}
                   onChange={(e) => setDuracao(e.target.value)}
                 >
-                  <option value="15m">15 min</option>
-                  <option value="30m">30 min</option>
-                  <option value="45m">45 min</option>
-                  <option value="1h">1 hora</option>
-                  <option value="1h30">1h 30m</option>
-                  <option value="2h">2 horas</option>
-                  <option value="3h+">3h ou mais</option>
+                  <option value="15 min">15 min</option>
+                  <option value="30 min">30 min</option>
+                  <option value="45 min">45 min</option>
+                  <option value="1h">1h</option>
+                  <option value="1h 30m">1h 30m</option>
+                  <option value="2h">2h</option>
                 </select>
               </div>
             </div>
 
             {/* Chips de Horários Rápidos */}
             <div className="quick-times-grid">
-              {quickTimes.map((time) => (
+              {PRESET_HOURS.map((hour) => (
                 <button
                   type="button"
-                  key={time}
-                  className={`chip-time ${horario === time ? "active" : ""}`}
-                  onClick={() => setHorario(time)}
+                  key={hour}
+                  className={`chip-time ${horario === hour ? "active" : ""}`}
+                  onClick={() => setHorario(hour)}
                 >
-                  {time}
+                  {hour}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Tipo de Recorrência */}
+          {/* Repetição / Frequência */}
           <div className="form-group">
             <label>Repetição / Frequência</label>
             <div className="recurrence-options">
@@ -183,23 +194,15 @@ export default function TaskModal({
               </button>
             </div>
 
-            {/* Dias personalizados */}
+            {/* Dias Personalizados */}
             {recurrenceType === "custom" && (
               <div className="custom-days-selector">
-                {[
-                  { label: "D", val: 0 },
-                  { label: "S", val: 1 },
-                  { label: "T", val: 2 },
-                  { label: "Q", val: 3 },
-                  { label: "Q", val: 4 },
-                  { label: "S", val: 5 },
-                  { label: "S", val: 6 },
-                ].map((d) => (
+                {WEEKDAYS.map((d) => (
                   <button
                     type="button"
-                    key={d.val}
-                    className={`day-circle ${selectedDays.includes(d.val) ? "selected" : ""}`}
-                    onClick={() => handleToggleDay(d.val)}
+                    key={d.id}
+                    className={`day-circle ${selectedDays.includes(d.id) ? "selected" : ""}`}
+                    onClick={() => toggleDay(d.id)}
                   >
                     {d.label}
                   </button>
@@ -207,45 +210,47 @@ export default function TaskModal({
               </div>
             )}
 
-            {/* Data única (Override) */}
+            {/* Apenas um dia selecionado */}
             {recurrenceType === "once" && (
-              <div style={{ marginTop: "8px" }}>
+              <div style={{ marginTop: "10px" }}>
                 <input
                   type="date"
+                  className="modal-date-input"
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
-                  className="modal-date-input"
+                  style={{ width: "100%" }}
                   required
                 />
               </div>
             )}
           </div>
 
-          {/* Validade da tarefa */}
+          {/* Limite de Data */}
           {recurrenceType !== "once" && (
             <div className="form-group">
               <label className="checkbox-until">
                 <input
                   type="checkbox"
-                  checked={hasUntil}
-                  onChange={(e) => setHasUntil(e.target.checked)}
+                  checked={hasLimitDate}
+                  onChange={(e) => setHasLimitDate(e.target.checked)}
                 />
-                Definir data limite para encerrar esta rotina
+                <span>Definir data limite para encerrar esta rotina</span>
               </label>
-              {hasUntil && (
+
+              {hasLimitDate && (
                 <input
                   type="date"
+                  className="modal-date-input"
                   value={untilDate}
                   onChange={(e) => setUntilDate(e.target.value)}
-                  className="modal-date-input"
-                  required={hasUntil}
-                  style={{ marginTop: "6px" }}
+                  style={{ marginTop: "8px", width: "100%" }}
+                  required
                 />
               )}
             </div>
           )}
 
-          {/* Botões do Rodapé */}
+          {/* Rodapé de Ações */}
           <div className="modal-footer">
             <button
               type="button"

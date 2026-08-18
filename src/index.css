@@ -63,7 +63,7 @@ body {
 }
 
 /* =========================================================
-   NAVBAR FLUTUANTE (FLOATING HEADER)
+   NAVBAR FLUTUANTE
    ========================================================= */
 .floating-navbar {
   width: 100%;
@@ -117,7 +117,6 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-/* NAVEGAÇÃO DE ABAS */
 .nav-pills {
   display: flex;
   background: rgba(0, 0, 0, 0.4);
@@ -154,7 +153,6 @@ body {
   box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
 }
 
-/* AÇÕES DO LADO DIREITO */
 .navbar-actions {
   display: flex;
   align-items: center;
@@ -545,7 +543,282 @@ body {
 }
 
 /* =========================================================
-   PLANNER SEMANAL & MENSAL & ESTATÍSTICAS (FLUTUANTE)
+   FORMULÁRIOS & MODAL FLUTUANTE (CORRIGIDO)
+   ========================================================= */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.modal-content {
+  background: #0f172a;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-close-modal:hover {
+  color: #fff;
+}
+
+.modal-form {
+  padding: 22px;
+}
+
+.modal-input {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.modal-input:focus {
+  border-color: var(--brand-primary);
+}
+
+.time-custom-row {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-time-input, .modal-date-input {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+
+.modal-time-input:focus, .modal-date-input:focus {
+  border-color: var(--brand-primary);
+}
+
+.duration-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.duration-select select {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.duration-select select option {
+  background: #0f172a;
+  color: #fff;
+}
+
+.quick-times-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip-time {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: #cbd5e1;
+  padding: 6px 0;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.chip-time:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.chip-time.active {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.recurrence-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.btn-rec {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: #cbd5e1;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-rec:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.btn-rec.active {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.custom-days-selector {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.day-circle {
+  flex: 1;
+  padding: 8px 0;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.15s;
+}
+
+.day-circle.selected {
+  background: #059669;
+  border-color: #10b981;
+  color: #fff;
+}
+
+.checkbox-until {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.btn-modal-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: #cbd5e1;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-modal-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.btn-modal-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: none;
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+}
+
+.btn-modal-save:hover {
+  filter: brightness(1.1);
+}
+
+/* =========================================================
+   PLANNER SEMANAL & MENSAL & ESTATÍSTICAS
    ========================================================= */
 .planner-container {
   background: var(--surface-card);
@@ -600,7 +873,6 @@ body {
   color: #fff;
 }
 
-/* GRADE SEMANAL */
 .week-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -683,7 +955,7 @@ body {
 .more-tasks { font-size: 10px; color: var(--text-dim); }
 .empty-day-txt { font-size: 11px; color: #475569; font-style: italic; }
 
-/* GRADE MENSAL (CALENDÁRIO) */
+/* GRADE MENSAL */
 .month-calendar {
   display: flex;
   flex-direction: column;
@@ -747,93 +1019,4 @@ body {
 .heat-100 { background: #065f46; border-color: #34d399; }
 .heat-100 .cal-percent { color: #ecfdf5; font-weight: 800; }
 
-/* ESTATÍSTICAS */
-.stats-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.stats-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.kpi-card {
-  background: var(--surface-card);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-card);
-  border-radius: var(--radius-md);
-  padding: 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.kpi-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.kpi-icon.streak { background: rgba(234, 88, 12, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
-.kpi-icon.avg { background: rgba(2, 132, 199, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
-
-.kpi-title { font-size: 12px; color: var(--text-muted); }
-.kpi-card h3 { font-size: 22px; color: #fff; margin: 3px 0; font-weight: 700; }
-.kpi-desc { font-size: 11px; color: var(--text-dim); }
-
-.chart-panel {
-  background: var(--surface-card);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-card);
-  border-radius: var(--radius-md);
-  padding: 22px;
-}
-
-.chart-panel h3 { font-size: 15px; color: var(--brand-cyan); margin-bottom: 18px; }
-
-.bar-chart-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  height: 160px;
-  gap: 8px;
-}
-
-.chart-bar-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  height: 100%;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.chart-val { font-size: 10px; color: var(--brand-cyan); font-weight: 600; }
-.chart-track {
-  width: 16px;
-  height: 100px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 6px;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-}
-
-.chart-bar-fill {
-  width: 100%;
-  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
-  border-radius: 6px;
-  transition: height 0.4s ease;
-}
-
-.chart-lbl { font-size: 10px; color: var(--text-muted); }
 .loading-text { text-align: center; color: var(--text-muted); margin: 40px 0; }
