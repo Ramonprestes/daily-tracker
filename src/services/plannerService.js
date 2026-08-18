@@ -5,9 +5,11 @@ import {
   setDoc,
   collection,
   getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 
-// Salvar / Obter tarefas gerais da rotina
+// Obter tarefas gerais da rotina
 export async function getGeneralTasks(userId) {
   if (!userId) return [];
   try {
@@ -23,6 +25,7 @@ export async function getGeneralTasks(userId) {
   }
 }
 
+// Salvar tarefas gerais da rotina
 export async function saveGeneralTasks(userId, tasks) {
   if (!userId) return;
   try {
@@ -33,7 +36,7 @@ export async function saveGeneralTasks(userId, tasks) {
   }
 }
 
-// Salvar / Obter snapshot diário
+// Obter snapshot de um dia específico
 export async function getDailySnapshot(userId, dateStr) {
   if (!userId || !dateStr) return null;
   try {
@@ -49,6 +52,7 @@ export async function getDailySnapshot(userId, dateStr) {
   }
 }
 
+// Salvar snapshot diário
 export async function saveDailySnapshot(userId, dateStr, data) {
   if (!userId || !dateStr) return;
   try {
@@ -59,7 +63,32 @@ export async function saveDailySnapshot(userId, dateStr, data) {
   }
 }
 
-// Obter todos os snapshots para relatórios / estatísticas
+// Obter snapshots por intervalo de datas (para Semanal, Mensal e Estatísticas)
+export async function getSnapshotsRange(userId, startDateStr, endDateStr) {
+  if (!userId) return {};
+  try {
+    const colRef = collection(db, "users", userId, "dailySnapshots");
+    const snap = await getDocs(colRef);
+    const result = {};
+
+    snap.forEach((docItem) => {
+      const dateKey = docItem.id;
+      if (
+        (!startDateStr || dateKey >= startDateStr) &&
+        (!endDateStr || dateKey <= endDateStr)
+      ) {
+        result[dateKey] = docItem.data();
+      }
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Erro ao buscar snapshots do período:", error);
+    return {};
+  }
+}
+
+// Obter todos os snapshots
 export async function getAllSnapshots(userId) {
   if (!userId) return {};
   try {
