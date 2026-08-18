@@ -5,66 +5,69 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Check,
-  X,
   Calendar,
   RotateCcw,
+  Clock,
+  Repeat,
 } from "lucide-react";
-import { getLocalDateString } from "../utils/dateUtils";
+import { getLocalDateString, shouldTaskOccurOnDate } from "../utils/dateUtils";
+import TaskModal from "./TaskModal";
 
 export default function DailyTimeline({
   selectedDate,
   setSelectedDate,
-  tipoRotina,
-  setTipoRotina,
   tarefas,
   tarefasConcluidas,
   onToggleTask,
   onAddTask,
   onEditTask,
   onDeleteTask,
-  editMode,
-  setEditMode,
 }) {
   const todayStr = getLocalDateString(new Date());
   const isToday = selectedDate === todayStr;
 
-  // Nova tarefa
-  const [newTime, setNewTime] = useState("08:00");
-  const [newTitle, setNewTitle] = useState("");
+  // Estado do Modal de Tarefa
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
 
-  // Edição inline
-  const [editingId, setEditingId] = useState(null);
-  const [editTime, setEditTime] = useState("");
-  const [editTitle, setEditTitle] = useState("");
-
-  const handleCreate = (e) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-    onAddTask({
-      id: Date.now().toString(),
-      horario: newTime,
-      tarefa: newTitle.trim(),
-    });
-    setNewTitle("");
+  const openNewTaskModal = () => {
+    setEditingTask(null);
+    setModalOpen(true);
   };
 
-  const handleStartEdit = (task) => {
-    setEditingId(task.id);
-    setEditTime(task.horario);
-    setEditTitle(task.tarefa);
+  const openEditTaskModal = (task) => {
+    setEditingTask(task);
+    setModalOpen(true);
   };
 
-  const handleSaveEdit = (id) => {
-    if (!editTitle.trim()) return;
-    onEditTask(id, { horario: editTime, tarefa: editTitle.trim() });
-    setEditingId(null);
+  const handleSaveModal = (taskData) => {
+    if (editingTask) {
+      onEditTask(taskData.id, taskData);
+    } else {
+      onAddTask(taskData);
+    }
   };
 
-  const currentTaskIds = new Set(tarefas.map((t) => t.id));
+  // Filtra tarefas que realmente devem aparecer no dia selecionado
+  const filteredTasks = tarefas.filter((t) => shouldTaskOccurOnDate(t, selectedDate));
+
+  const currentTaskIds = new Set(filteredTasks.map((t) => t.id));
   const validCompleted = tarefasConcluidas.filter((id) => currentTaskIds.has(id));
   const progressPercent =
-    tarefas.length > 0 ? Math.min(100, Math.round((validCompleted.length / tarefas.length) * 100)) : 0;
+    filteredTasks.length > 0
+      ? Math.min(100, Math.round((validCompleted.length / filteredTasks.length) * 100))
+      : 0;
+
+  const getRecurrenceLabel = (task) => {
+    if (task.recurrenceType === "once") return "Apenas hoje";
+    if (task.recurrenceType === "weekdays") return "Seg-Sex";
+    if (task.recurrenceType === "weekends") return "Fim de sem.";
+    if (task.recurrenceType === "custom") {
+      const daysMap = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb", 0: "Dom" };
+      return (task.selectedDays || []).map((d) => daysMap[d]).join(", ");
+    }
+    return "Diário";
+  };
 
   return (
     <div className="daily-view">
@@ -86,26 +89,9 @@ export default function DailyTimeline({
           )}
         </div>
 
-        <div className="routine-selector">
-          <button
-            className={`btn-tab ${tipoRotina === "semana" ? "active" : ""}`}
-            onClick={() => setTipoRotina("semana")}
-          >
-            Semana
-          </button>
-          <button
-            className={`btn-tab ${tipoRotina === "fim-de-semana" ? "active" : ""}`}
-            onClick={() => setTipoRotina("fim-de-semana")}
-          >
-            Fim de Semana
-          </button>
-          <button
-            className={`btn-tab ${tipoRotina === "foco" ? "active" : ""}`}
-            onClick={() => setTipoRotina("foco")}
-          >
-            Foco Total
-          </button>
-        </div>
+        <button className="btn-add-primary" onClick={openNewTaskModal}>
+          <Plus size={18} /> Nova Tarefa
+        </button>
 
         <div className="progress-card">
           <div className="progress-info">
@@ -120,76 +106,18 @@ export default function DailyTimeline({
         </div>
       </div>
 
-      {editMode && (
-        <div className="editor-box">
-          <h4>Adicionar Tarefa na Rotina ({tipoRotina.toUpperCase()})</h4>
-          <form onSubmit={handleCreate} className="add-task-form">
-            <input
-              type="time"
-              value={newTime}
-              onChange={(e) => setNewTime(e.target.value)}
-              className="input-time"
-            />
-            <input
-              type="text"
-              placeholder="Ex: Treino, Reunião, Leitura..."
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="input-task-name"
-            />
-            <button type="submit" className="btn-action">
-              <Plus size={16} /> Adicionar
-            </button>
-          </form>
-        </div>
-      )}
-
       <div className="timeline-container">
-        {tarefas.length === 0 ? (
+        {filteredTasks.length === 0 ? (
           <div className="empty-state">
-            <p>Nenhuma tarefa agendada para este dia.</p>
-            <button className="btn-action" onClick={() => setEditMode(true)}>
-              <Plus size={16} /> Criar Tarefa
+            <p>Nenhuma tarefa programada para este dia.</p>
+            <button className="btn-action" onClick={openNewTaskModal}>
+              <Plus size={16} /> Adicionar Tarefa
             </button>
           </div>
         ) : (
-          tarefas.map((task) => {
+          filteredTasks.map((task) => {
             const isDone = tarefasConcluidas.includes(task.id);
-            const isEditing = editingId === task.id;
-
-            if (isEditing) {
-              return (
-                <div key={task.id} className="task-row editing-row">
-                  <input
-                    type="time"
-                    value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
-                    className="input-time-edit"
-                  />
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="input-task-name-edit"
-                    autoFocus
-                  />
-                  <div className="edit-actions">
-                    <button
-                      className="btn-save-edit"
-                      onClick={() => handleSaveEdit(task.id)}
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      className="btn-cancel-edit"
-                      onClick={() => setEditingId(null)}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-              );
-            }
+            const recLabel = getRecurrenceLabel(task);
 
             return (
               <div
@@ -203,30 +131,50 @@ export default function DailyTimeline({
                     <Square className="task-icon" size={22} />
                   )}
                   <span className="task-badge-time">{task.horario}</span>
-                  <span className="task-title">{task.tarefa}</span>
+                  <div className="task-details-col">
+                    <span className="task-title">{task.tarefa}</span>
+                    <div className="task-tags">
+                      {task.duracao && (
+                        <span className="task-tag duration">
+                          <Clock size={11} /> {task.duracao}
+                        </span>
+                      )}
+                      <span className="task-tag recurrence">
+                        <Repeat size={11} /> {recLabel}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {editMode && (
-                  <div className="row-actions">
-                    <button
-                      className="btn-action-icon edit"
-                      onClick={() => handleStartEdit(task)}
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      className="btn-action-icon delete"
-                      onClick={() => onDeleteTask(task.id)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
+                <div className="row-actions">
+                  <button
+                    className="btn-action-icon edit"
+                    onClick={() => openEditTaskModal(task)}
+                    title="Editar Tarefa"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    className="btn-action-icon delete"
+                    onClick={() => onDeleteTask(task.id)}
+                    title="Excluir Tarefa"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             );
           })
         )}
       </div>
+
+      <TaskModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSaveModal}
+        editingTask={editingTask}
+        initialDate={selectedDate}
+      />
     </div>
   );
 }
