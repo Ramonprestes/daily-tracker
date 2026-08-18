@@ -1,121 +1,115 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { getMonthDays, getLocalDateString } from "../utils/dateUtils";
-import { getSnapshotsRange } from "../services/plannerService";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { getLocalDateString, getMonthDays, resolveDayTasksWithOverrides } from "../utils/dateUtils";
+import { getSnapshotsRange, getGeneralTasks } from "../services/plannerService";
 
 export default function MonthlyPlanner({ currentUser, onSelectDay }) {
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [days, setDays] = useState([]);
-  const [monthData, setMonthData] = useState({});
+  const [viewDate, setViewDate] = useState(new Date());
+  const [snapshots, setSnapshots] = useState({});
+  const [generalTasks, setGeneralTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const monthDays = getMonthDays(year, month);
 
   const monthNames = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
+  const weekdays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
   useEffect(() => {
-    const monthDays = getMonthDays(year, month);
-    setDays(monthDays);
+    async function loadMonthData() {
+      if (!currentUser?.uid) return;
+      try {
+        setLoading(true);
+        const startStr = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+        const endStr = `${year}-${String(month + 1).padStart(2, "0")}-31`;
 
-    async function loadMonth() {
-      setLoading(true);
-      const validDates = monthDays.filter(Boolean).map((d) => d.dateStr);
-      const data = await getSnapshotsRange(currentUser.uid, validDates);
-      setMonthData(data);
-      setLoading(false);
+        const [snaps, tasks] = await Promise.all([
+          getSnapshotsRange(currentUser.uid, startStr, endStr),
+          getGeneralTasks(currentUser.uid),
+        ]);
+        setSnapshots(snaps || {});
+        setGeneralTasks(tasks || []);
+      } catch (err) {
+        console.error("Erro ao carregar mês:", err);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    if (currentUser) loadMonth();
-  }, [year, month, currentUser]);
+    loadMonthData();
+  }, [currentUser, year, month]);
 
-  const handlePrevMonth = () => {
-    if (month === 0) {
-      setMonth(11);
-      setYear((y) => y - 1);
-    } else {
-      setMonth((m) => m - 1);
-    }
-  };
+  const handlePrevMonth = () => setViewDate(new Date(year, month - 1, 1));
+  const handleNextMonth = () => setViewDate(new Date(year, month + 1, 1));
+  const handleCurrentMonth = () => setViewDate(new Date());
 
-  const handleNextMonth = () => {
-    if (month === 11) {
-      setMonth(0);
-      setYear((y) => y + 1);
-    } else {
-      setMonth((m) => m + 1);
-    }
+  const getHeatClass = (pct) => {
+    if (pct === 0) return "heat-0";
+    if (pct <= 25) return "heat-25";
+    if (pct <= 50) return "heat-50";
+    if (pct <= 75) return "heat-75";
+    return "heat-100";
   };
 
   return (
     <div className="planner-container">
       <div className="planner-header">
-        <h3>
-          {monthNames[month]} de {year}
-        </h3>
+        <h2>{monthNames[month]} de {year}</h2>
         <div className="nav-controls">
           <button className="btn-nav" onClick={handlePrevMonth}>
-            <ChevronLeft size={18} />
+            <ChevronLeft size={14} />
           </button>
-          <button
-            className="btn-nav"
-            onClick={() => {
-              setYear(today.getFullYear());
-              setMonth(today.getMonth());
-            }}
-          >
-            Mês Atual
+          <button className="btn-nav" onClick={handleCurrentMonth}>
+            <RotateCcw size={13} /> Mês Atual
           </button>
           <button className="btn-nav" onClick={handleNextMonth}>
-            <ChevronRight size={18} />
+            <ChevronRight size={14} />
           </button>
         </div>
       </div>
 
       {loading ? (
-        <p className="loading-text">Carregando calendário mensal...</p>
+        <p className="loading-text">Carregando calendário...</p>
       ) : (
         <div className="month-calendar">
           <div className="calendar-weekdays">
-            <span>Seg</span>
-            <span>Ter</span>
-            <span>Qua</span>
-            <span>Qui</span>
-            <span>Sex</span>
-            <span>Sáb</span>
-            <span>Dom</span>
+            {weekdays.map((w, i) => (
+              <div key={i}>{w}</div>
+            ))}
           </div>
 
           <div className="calendar-grid">
-            {days.map((day, idx) => {
-              if (!day) {
+            {monthDays.map((cell, idx) => {
+              if (!cell) {
                 return <div key={`empty-${idx}`} className="cal-cell empty"></div>;
               }
 
-              const data = monthData[day.dateStr];
-              const percent = data?.percent ?? 0;
-              let heatColor = "heat-0";
+              const dayTasks = resolveDayTasksWithOverrides(generalTasks, cell.dateStr);
+              const snap = snapshots[cell.dateStr];
 
-              if (data && data.totalTarefas > 0) {
-                if (percent === 100) heatColor = "heat-100";
-                else if (percent >= 60) heatColor = "heat-75";
-                else if (percent >= 25) heatColor = "heat-50";
-                else heatColor = "heat-25";
+              let doneCount = 0;
+              if (snap?.tarefasStatusMap) {
+                doneCount = Object.values(snap.tarefasStatusMap).filter(s => s.status === "done").length;
+              } else if (Array.isArray(snap?.tarefasConcluidas)) {
+                doneCount = snap.tarefasConcluidas.length;
               }
+
+              const totalCount = dayTasks.length;
+              const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+              const heatClass = totalCount > 0 ? getHeatClass(pct) : "heat-0";
 
               return (
                 <div
-                  key={day.dateStr}
-                  className={`cal-cell ${heatColor} ${day.isToday ? "today-cell" : ""}`}
-                  onClick={() => onSelectDay(day.dateStr)}
-                  title={`${day.dateStr}: ${percent}% concluído`}
+                  key={cell.dateStr}
+                  className={`cal-cell ${heatClass} ${cell.isToday ? "today-cell" : ""}`}
+                  onClick={() => onSelectDay(cell.dateStr)}
                 >
-                  <span className="cal-day-num">{day.dayNumber}</span>
-                  {data && data.totalTarefas > 0 && (
-                    <span className="cal-percent">{percent}%</span>
-                  )}
+                  <span className="cal-day-num">{cell.dayNumber}</span>
+                  {totalCount > 0 && <span className="cal-percent">{pct}%</span>}
                 </div>
               );
             })}

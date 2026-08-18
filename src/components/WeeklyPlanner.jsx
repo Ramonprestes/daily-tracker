@@ -1,99 +1,128 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
-import { getWeekDays, getLocalDateString } from "../utils/dateUtils";
-import { getSnapshotsRange } from "../services/plannerService";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { getLocalDateString, getWeekDays, resolveDayTasksWithOverrides } from "../utils/dateUtils";
+import { getSnapshotsRange, getGeneralTasks } from "../services/plannerService";
 
 export default function WeeklyPlanner({ currentUser, onSelectDay }) {
-  const [baseDate, setBaseDate] = useState(getLocalDateString(new Date()));
-  const [weekDays, setWeekDays] = useState([]);
-  const [weekData, setWeekData] = useState({});
+  const [currentDate, setCurrentDate] = useState(getLocalDateString(new Date()));
+  const [weekSnapshots, setWeekSnapshots] = useState({});
+  const [generalTasks, setGeneralTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const days = getWeekDays(baseDate);
-    setWeekDays(days);
+  const days = getWeekDays(currentDate);
+  const startStr = days[0]?.dateStr;
+  const endStr = days[6]?.dateStr;
 
-    async function loadWeek() {
-      setLoading(true);
-      const dates = days.map((d) => d.dateStr);
-      const data = await getSnapshotsRange(currentUser.uid, dates);
-      setWeekData(data);
-      setLoading(false);
+  useEffect(() => {
+    async function loadWeekData() {
+      if (!currentUser?.uid) return;
+      try {
+        setLoading(true);
+        const [snaps, tasks] = await Promise.all([
+          getSnapshotsRange(currentUser.uid, startStr, endStr),
+          getGeneralTasks(currentUser.uid),
+        ]);
+        setWeekSnapshots(snaps || {});
+        setGeneralTasks(tasks || []);
+      } catch (err) {
+        console.error("Erro ao carregar semana:", err);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    if (currentUser) loadWeek();
-  }, [baseDate, currentUser]);
+    loadWeekData();
+  }, [currentUser, startStr, endStr]);
 
-  const changeWeek = (offsetDays) => {
-    const current = new Date(baseDate + "T00:00:00");
-    current.setDate(current.getDate() + offsetDays);
-    setBaseDate(getLocalDateString(current));
+  const handlePrevWeek = () => {
+    const d = new Date(currentDate + "T00:00:00");
+    d.setDate(d.getDate() - 7);
+    setCurrentDate(getLocalDateString(d));
+  };
+
+  const handleNextWeek = () => {
+    const d = new Date(currentDate + "T00:00:00");
+    d.setDate(d.getDate() + 7);
+    setCurrentDate(getLocalDateString(d));
+  };
+
+  const handleToday = () => {
+    setCurrentDate(getLocalDateString(new Date()));
   };
 
   return (
     <div className="planner-container">
       <div className="planner-header">
-        <h3>Planejamento Semanal</h3>
+        <h2>Planejamento Semanal</h2>
         <div className="nav-controls">
-          <button className="btn-nav" onClick={() => changeWeek(-7)}>
-            <ChevronLeft size={18} /> Semana Anterior
+          <button className="btn-nav" onClick={handlePrevWeek}>
+            <ChevronLeft size={14} /> Semana Anterior
           </button>
-          <button className="btn-nav" onClick={() => setBaseDate(getLocalDateString(new Date()))}>
-            Esta Semana
+          <button className="btn-nav" onClick={handleToday}>
+            <RotateCcw size={13} /> Esta Semana
           </button>
-          <button className="btn-nav" onClick={() => changeWeek(7)}>
-            Próxima Semana <ChevronRight size={18} />
+          <button className="btn-nav" onClick={handleNextWeek}>
+            Próxima Semana <ChevronRight size={14} />
           </button>
         </div>
       </div>
 
       {loading ? (
-        <p className="loading-text">Carregando dados da semana...</p>
+        <p className="loading-text">Carregando visão semanal...</p>
       ) : (
         <div className="week-grid">
-          {weekDays.map((day) => {
-            const dayInfo = weekData[day.dateStr];
-            const percent = dayInfo?.percent ?? 0;
-            const tarefas = dayInfo?.tarefas || [];
-            const concluidas = dayInfo?.tarefasConcluidas || [];
+          {days.map((d) => {
+            const dayTasks = resolveDayTasksWithOverrides(generalTasks, d.dateStr);
+            const snap = weekSnapshots[d.dateStr];
+            
+            let doneCount = 0;
+            if (snap?.tarefasStatusMap) {
+              doneCount = Object.values(snap.tarefasStatusMap).filter(s => s.status === "done").length;
+            } else if (Array.isArray(snap?.tarefasConcluidas)) {
+              doneCount = snap.tarefasConcluidas.length;
+            }
+
+            const totalCount = dayTasks.length;
+            const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
             return (
               <div
-                key={day.dateStr}
-                className={`day-card ${day.isToday ? "today-highlight" : ""}`}
-                onClick={() => onSelectDay(day.dateStr)}
+                key={d.dateStr}
+                className={`day-card ${d.isToday ? "today-highlight" : ""}`}
+                onClick={() => onSelectDay(d.dateStr)}
               >
                 <div className="day-card-header">
                   <div>
-                    <strong className="day-name">{day.dayName}</strong>
-                    <span className="day-num">{day.dayNumber}</span>
+                    <span className="day-name">{d.dayName}</span>
+                    <div className="day-num">{d.dayNumber}</div>
                   </div>
-                  <span className="day-badge">{percent}%</span>
+                  {totalCount > 0 && <span className="day-badge">{pct}%</span>}
                 </div>
 
-                <div className="day-progress-bar">
-                  <div
-                    className="day-progress-fill"
-                    style={{ width: `${percent}%` }}
-                  ></div>
-                </div>
+                {totalCount > 0 && (
+                  <div className="day-progress-bar">
+                    <div className="day-progress-fill" style={{ width: `${pct}%` }}></div>
+                  </div>
+                )}
 
                 <div className="day-tasks-preview">
-                  {tarefas.length === 0 ? (
-                    <span className="empty-day-txt">Sem registros</span>
+                  {dayTasks.length === 0 ? (
+                    <span className="empty-day-txt">Sem rotina</span>
                   ) : (
-                    tarefas.slice(0, 4).map((t) => (
-                      <div
-                        key={t.id}
-                        className={`preview-task ${concluidas.includes(t.id) ? "done" : ""}`}
-                      >
-                        <span className="time">{t.horario}</span>
-                        <span className="name">{t.tarefa}</span>
-                      </div>
-                    ))
+                    dayTasks.slice(0, 3).map((t, idx) => {
+                      const isDone =
+                        snap?.tarefasStatusMap?.[String(t.id)]?.status === "done" ||
+                        snap?.tarefasConcluidas?.includes(t.id);
+                      return (
+                        <div key={idx} className={`preview-task ${isDone ? "done" : ""}`}>
+                          <span className="time">{t.horario}</span>
+                          <span>{t.tarefa}</span>
+                        </div>
+                      );
+                    })
                   )}
-                  {tarefas.length > 4 && (
-                    <span className="more-tasks">+{tarefas.length - 4} tarefas</span>
+                  {dayTasks.length > 3 && (
+                    <span className="more-tasks">+{dayTasks.length - 3} tarefas</span>
                   )}
                 </div>
               </div>
