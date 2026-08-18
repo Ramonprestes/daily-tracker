@@ -34,9 +34,10 @@ export default function Dashboard() {
       : false
   );
 
+  // Carregar dados
   useEffect(() => {
     async function loadData() {
-      if (!currentUser || !currentUser.uid) return;
+      if (!currentUser?.uid) return;
       try {
         setLoading(true);
         const generalList = await getGeneralTasks(currentUser.uid);
@@ -45,16 +46,16 @@ export default function Dashboard() {
         const daySnap = await getDailySnapshot(currentUser.uid, selectedDate);
         let finalMap = {};
 
-        if (daySnap && daySnap.tarefasStatusMap) {
+        if (daySnap?.tarefasStatusMap) {
           finalMap = daySnap.tarefasStatusMap;
-        } else if (daySnap && Array.isArray(daySnap.tarefasConcluidas)) {
+        } else if (Array.isArray(daySnap?.tarefasConcluidas)) {
           daySnap.tarefasConcluidas.forEach((id) => {
             finalMap[String(id)] = { status: "done", completedAt: "Feito" };
           });
         }
         setTarefasStatusMap(finalMap);
       } catch (err) {
-        console.error("Erro ao carregar dados:", err);
+        console.error("Erro ao carregar:", err);
       } finally {
         setLoading(false);
       }
@@ -63,33 +64,34 @@ export default function Dashboard() {
     loadData();
   }, [currentUser, selectedDate]);
 
+  // Modificar status da tarefa
   const handleSetTaskStatus = (taskId, statusObject) => {
     const key = String(taskId);
-    const updatedMap = { ...tarefasStatusMap };
 
-    if (!statusObject) {
-      delete updatedMap[key];
-    } else {
-      updatedMap[key] = statusObject;
-    }
+    setTarefasStatusMap((prev) => {
+      const nextMap = { ...prev };
+      if (!statusObject) {
+        delete nextMap[key];
+      } else {
+        nextMap[key] = statusObject;
+      }
 
-    setTarefasStatusMap(updatedMap);
+      if (currentUser?.uid) {
+        const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
+        saveDailySnapshot(currentUser.uid, selectedDate, {
+          tarefasStatusMap: nextMap,
+          totalTarefas: activeTasks.length,
+        }).catch((e) => console.error("Erro background save:", e));
+      }
 
-    if (currentUser && currentUser.uid) {
-      const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
-      saveDailySnapshot(currentUser.uid, selectedDate, {
-        tarefasStatusMap: updatedMap,
-        totalTarefas: activeTasks.length,
-      }).catch((err) => console.error("Erro ao salvar status:", err));
-    }
+      return nextMap;
+    });
   };
 
   const handleAddTask = async (newTask) => {
-    const updated = sortTasksByTime([...tarefas, { ...newTask, id: String(newTask.id) }]);
+    const updated = sortTasksByTime([...tarefas, { ...newTask, id: String(newTask.id || Date.now()) }]);
     setTarefas(updated);
-    if (currentUser && currentUser.uid) {
-      await saveGeneralTasks(currentUser.uid, updated);
-    }
+    if (currentUser?.uid) await saveGeneralTasks(currentUser.uid, updated);
   };
 
   const handleEditTask = async (taskId, updatedData) => {
@@ -97,9 +99,7 @@ export default function Dashboard() {
     const updated = tarefas.map((t) => (String(t.id) === key ? { ...t, ...updatedData } : t));
     const sorted = sortTasksByTime(updated);
     setTarefas(sorted);
-    if (currentUser && currentUser.uid) {
-      await saveGeneralTasks(currentUser.uid, sorted);
-    }
+    if (currentUser?.uid) await saveGeneralTasks(currentUser.uid, sorted);
   };
 
   const handleDeleteTask = async (taskId) => {
@@ -107,17 +107,18 @@ export default function Dashboard() {
     const updated = tarefas.filter((t) => String(t.id) !== key);
     setTarefas(updated);
 
-    const updatedMap = { ...tarefasStatusMap };
-    delete updatedMap[key];
-    setTarefasStatusMap(updatedMap);
-
-    if (currentUser && currentUser.uid) {
-      await saveGeneralTasks(currentUser.uid, updated);
-      await saveDailySnapshot(currentUser.uid, selectedDate, {
-        tarefasStatusMap: updatedMap,
-        totalTarefas: updated.length,
-      });
-    }
+    setTarefasStatusMap((prev) => {
+      const nextMap = { ...prev };
+      delete nextMap[key];
+      if (currentUser?.uid) {
+        saveDailySnapshot(currentUser.uid, selectedDate, {
+          tarefasStatusMap: nextMap,
+          totalTarefas: updated.length,
+        });
+        saveGeneralTasks(currentUser.uid, updated);
+      }
+      return nextMap;
+    });
   };
 
   const handleSelectDay = (dateStr) => {
@@ -133,28 +134,28 @@ export default function Dashboard() {
       const doc = new jsPDF();
       doc.setFontSize(18);
       doc.setTextColor(30, 41, 59);
-      doc.text("Relatorio de Produtividade Diaria", 14, 20);
+      doc.text("Relatório de Produtividade Diária", 14, 20);
 
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Usuario: ${currentUser ? currentUser.email : ""}`, 14, 28);
+      doc.text(`Usuário: ${currentUser?.email || ""}`, 14, 28);
       doc.text(`Data: ${selectedDate}`, 14, 34);
 
       const activeTasks = resolveDayTasksWithOverrides(tarefas, selectedDate);
       const rows = activeTasks.map((t) => {
         const rec = tarefasStatusMap[String(t.id)];
         let statusStr = "PENDENTE";
-        if (rec && rec.status === "done") {
-          statusStr = rec.completedAt ? `CONCLUIDO (${rec.completedAt})` : "CONCLUIDO";
-        } else if (rec && rec.status === "failed") {
-          statusStr = "NAO REALIZADO";
+        if (rec?.status === "done") {
+          statusStr = rec.completedAt ? `CONCLUÍDO (${rec.completedAt})` : "CONCLUÍDO";
+        } else if (rec?.status === "failed") {
+          statusStr = "NÃO REALIZADO";
         }
         return [t.horario, t.tarefa, t.duracao || "-", statusStr];
       });
 
       autoTable(doc, {
         startY: 42,
-        head: [["Horario", "Tarefa", "Duracao", "Status"]],
+        head: [["Horário", "Tarefa", "Duração", "Status"]],
         body: rows,
         theme: "grid",
         headStyles: { fillColor: [2, 132, 199] },
@@ -162,7 +163,7 @@ export default function Dashboard() {
 
       doc.save(`relatorio-${selectedDate}.pdf`);
     } catch (err) {
-      console.error("Erro ao gerar PDF:", err);
+      console.error("Erro PDF:", err);
     }
   };
 
