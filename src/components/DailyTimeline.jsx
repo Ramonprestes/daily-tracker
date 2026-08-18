@@ -66,22 +66,20 @@ export default function DailyTimeline({
   const safeTasks = Array.isArray(tarefas) ? tarefas : [];
   const displayTasks = resolveDayTasksWithOverrides(safeTasks, selectedDate);
 
-  // Cálculo do progresso
   const totalTasks = displayTasks.length;
   const doneTasks = displayTasks.filter(
-    (t) => tarefasStatusMap[String(t.id)]?.status === "done"
+    (t) => tarefasStatusMap[String(t.id)] && tarefasStatusMap[String(t.id)].status === "done"
   ).length;
   const progressPercent =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  // Toggle do Feito
   const handleToggleCheck = (task, e) => {
     if (e) e.stopPropagation();
     const key = String(task.id);
-    const current = tarefasStatusMap[key]?.status;
+    const current = tarefasStatusMap[key] ? tarefasStatusMap[key].status : null;
 
     if (current === "done") {
-      onSetTaskStatus(key, null); // Volta para pendente
+      onSetTaskStatus(key, null);
     } else {
       const recordedAt = getCurrentTimeStr();
       const delay = getTaskDelayInfo(task.horario, selectedDate);
@@ -93,14 +91,13 @@ export default function DailyTimeline({
     }
   };
 
-  // Toggle do Não Feito
   const handleToggleNotDone = (task, e) => {
     if (e) e.stopPropagation();
     const key = String(task.id);
-    const current = tarefasStatusMap[key]?.status;
+    const current = tarefasStatusMap[key] ? tarefasStatusMap[key].status : null;
 
     if (current === "failed") {
-      onSetTaskStatus(key, null); // Volta para pendente
+      onSetTaskStatus(key, null);
     } else {
       onSetTaskStatus(key, {
         status: "failed",
@@ -114,10 +111,10 @@ export default function DailyTimeline({
     if (task.recurrenceType === "weekdays") return "Seg-Sex";
     if (task.recurrenceType === "weekends") return "Fim de sem.";
     if (task.recurrenceType === "custom") {
-      const daysMap = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb", 0: "Dom" };
+      const daysMap = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sab", 0: "Dom" };
       return (task.selectedDays || []).map((d) => daysMap[d]).join(", ");
     }
-    return "Diário";
+    return "Diario";
   };
 
   if (loading) {
@@ -126,7 +123,6 @@ export default function DailyTimeline({
 
   return (
     <div className="daily-view">
-      {/* CONTROLES */}
       <div className="controls-bar">
         <div className="date-picker-wrap">
           <Calendar size={18} />
@@ -159,7 +155,6 @@ export default function DailyTimeline({
         </div>
       </div>
 
-      {/* LISTA */}
       <div className="timeline-container">
         {totalTasks === 0 ? (
           <div className="empty-state">
@@ -211,7 +206,7 @@ export default function DailyTimeline({
 
                       {task.recurrenceType === "once" ? (
                         <span className="task-tag override-tag">
-                          <Sparkles size={11} /> Substituição
+                          <Sparkles size={11} /> Substituicao
                         </span>
                       ) : (
                         <span className="task-tag recurrence">
@@ -224,8 +219,8 @@ export default function DailyTimeline({
                           className={`task-tag ${taskRecord.isLate ? "tag-late-done" : "tag-ontime-done"}`}
                         >
                           {taskRecord.isLate
-                            ? `Feito c/ atraso às ${taskRecord.completedAt}`
-                            : `Feito às ${taskRecord.completedAt}`}
+                            ? `Feito c/ atraso as ${taskRecord.completedAt}`
+                            : `Feito as ${taskRecord.completedAt}`}
                         </span>
                       )}
 
@@ -237,16 +232,52 @@ export default function DailyTimeline({
 
                       {isFailed && (
                         <span className="task-tag tag-failed-badge">
-                          Não realizado
+                          Nao realizado
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* BOTÕES DE AÇÃO */}
                 <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className={`btn-action-icon not-done ${isFailed ? "active-failed" : ""}`}
                     onClick={(e) => handleToggleNotDone(task, e)}
-                    title={isFailed ? "Cancelar
+                    title={isFailed ? "Cancelar 'Nao Feito'" : "Marcar como Nao Feito"}
+                  >
+                    <XCircle size={16} />
+                  </button>
+                  <button
+                    className="btn-action-icon edit"
+                    onClick={(e) => openEditTaskModal(task, e)}
+                    title="Editar Tarefa"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    className="btn-action-icon delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteTask(task.id);
+                    }}
+                    title="Excluir Tarefa"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <TaskModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSaveModal}
+        editingTask={editingTask}
+        initialDate={selectedDate}
+      />
+    </div>
+  );
+}
